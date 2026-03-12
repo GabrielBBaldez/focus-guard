@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="color-scheme" content="dark">
+  <meta name="darkreader-lock">
+  <title>Focus Guard - Bloqueado</title>
+  <style>
+    :root { color-scheme: dark !important; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background: #0a0a0f !important;
+      background-color: #0a0a0f !important;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+      color: #e4e4e7 !important;
+      overflow-x: hidden !important;
+    }
+
+    /* ── Animated grid ── */
+    .bg-grid {
+      position: fixed !important; inset: 0 !important;
+      background-image:
+        linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px) !important;
+      background-size: 60px 60px !important;
+      background-color: transparent !important;
+      animation: gridMove 20s linear infinite;
+    }
+    @keyframes gridMove {
+      0% { transform: translate(0,0); }
+      100% { transform: translate(60px,60px); }
+    }
+
+    .container {
+      position: relative; z-index: 1;
+      text-align: center; max-width: 520px;
+      padding: 32px 24px;
+    }
+
+    /* ── Logo ── */
+    .logo {
+      width: 100px; height: 100px;
+      margin: 0 auto 24px;
+      animation: logoFloat 4s ease-in-out infinite, logoGlow 4s ease-in-out infinite;
+    }
+    .logo img { width: 100%; height: 100%; object-fit: contain; }
+
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0) scale(1) rotate(0deg); }
+      25% { transform: translateY(-6px) scale(1.03) rotate(-1deg); }
+      50% { transform: translateY(-10px) scale(1.06) rotate(0deg); }
+      75% { transform: translateY(-6px) scale(1.03) rotate(1deg); }
+    }
+    @keyframes logoGlow {
+      0%, 100% { filter: drop-shadow(0 0 15px rgba(99,102,241,0.3)) drop-shadow(0 4px 12px rgba(0,0,0,0.3)); }
+      50% { filter: drop-shadow(0 0 35px rgba(99,102,241,0.6)) drop-shadow(0 0 60px rgba(139,92,246,0.25)) drop-shadow(0 8px 20px rgba(0,0,0,0.2)); }
+    }
+
+    /* ── Nuclear mode ── */
+    .nuclear-mode .logo {
+      filter: drop-shadow(0 0 20px rgba(220,38,38,0.6)) !important;
+    }
+    .nuclear-alert {
+      display: none;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, rgba(127,29,29,0.3), rgba(69,10,10,0.3)) !important;
+      border: 1px solid rgba(220,38,38,0.3) !important;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .nuclear-mode .nuclear-alert { display: block !important; }
+    .nuclear-alert-icon { font-size: 24px; }
+    .nuclear-alert-text {
+      font-size: 13px !important; font-weight: 700 !important;
+      color: #fca5a5 !important; margin-top: 4px;
+    }
+    .nuclear-alert-time {
+      font-size: 11px !important; color: #ef4444 !important; margin-top: 2px;
+    }
+
+    /* ── Title ── */
+    h1 {
+      font-size: 26px !important; font-weight: 800 !important;
+      letter-spacing: -0.5px; margin-bottom: 10px;
+      color: #e4e4e7 !important;
+      background: linear-gradient(135deg, #e4e4e7, #a1a1aa) !important;
+      -webkit-background-clip: text !important;
+      -webkit-text-fill-color: transparent !important;
+      background-clip: text !important;
+    }
+
+    .site-name {
+      display: inline-block !important; padding: 5px 14px !important;
+      background: rgba(99,102,241,0.12) !important;
+      background-color: rgba(99,102,241,0.12) !important;
+      border: 1px solid rgba(99,102,241,0.25) !important;
+      border-radius: 8px; font-size: 14px !important;
+      font-weight: 600 !important; color: #818cf8 !important;
+      margin-bottom: 16px;
+    }
+
+    /* ── Stats ── */
+    .stats {
+      display: flex !important; justify-content: center; gap: 24px;
+      margin-bottom: 20px; padding: 12px 0;
+    }
+
+    .stat { text-align: center; }
+
+    .stat-value {
+      font-size: 20px !important; font-weight: 800 !important;
+      color: #e4e4e7 !important; line-height: 1;
+    }
+    .stat-value.over { color: #ef4444 !important; }
+
+    .stat-label {
+      font-size: 10px !important; color: #52525b !important;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin-top: 4px;
+    }
+
+    /* ── Message ── */
+    .message {
+      font-size: 15px !important; color: #71717a !important;
+      line-height: 1.6; margin-bottom: 20px;
+    }
+    .message strong { color: #a1a1aa !important; }
+
+    /* ── Quote ── */
+    .quote {
+      font-style: italic; color: #52525b !important;
+      font-size: 13px !important; padding: 14px 20px;
+      border-left: 3px solid #6366f1 !important;
+      margin-bottom: 24px; text-align: left;
+      background-color: transparent !important;
+    }
+
+    /* ── Challenge Section ── */
+    .challenge-section {
+      display: none;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+    .challenge-section.visible { display: block !important; }
+
+    .challenge-label {
+      font-size: 11px !important; color: #52525b !important;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 8px; text-align: center;
+    }
+
+    .challenge-text {
+      padding: 14px 16px;
+      background: rgba(99,102,241,0.06) !important;
+      border: 1px solid rgba(99,102,241,0.15) !important;
+      border-radius: 8px;
+      font-size: 13px !important; color: #a1a1aa !important;
+      line-height: 1.6;
+      margin-bottom: 10px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .challenge-input {
+      width: 100%; padding: 12px 14px;
+      background: #18181b !important;
+      border: 1px solid #27272a !important;
+      border-radius: 8px;
+      color: #e4e4e7 !important;
+      font-size: 13px !important;
+      font-family: inherit;
+      outline: none;
+      resize: vertical;
+      min-height: 80px;
+      transition: border-color 0.2s;
+    }
+    .challenge-input:focus { border-color: #6366f1 !important; }
+    .challenge-input.error { border-color: #dc2626 !important; }
+    .challenge-input.success { border-color: #22c55e !important; }
+
+    .challenge-hint {
+      font-size: 10px !important; color: #3f3f46 !important;
+      margin-top: 6px; text-align: center;
+    }
+    .challenge-hint.error-text { color: #ef4444 !important; }
+
+    .btn-challenge-verify {
+      display: block; width: 100%;
+      margin-top: 10px; padding: 10px;
+      background: rgba(99,102,241,0.15) !important;
+      border: 1px solid rgba(99,102,241,0.3) !important;
+      border-radius: 8px;
+      color: #818cf8 !important;
+      font-size: 12px !important; font-weight: 600 !important;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-challenge-verify:hover {
+      background: rgba(99,102,241,0.25) !important;
+      border-color: #6366f1 !important;
+    }
+
+    /* ── Breathing Exercise ── */
+    .breath-section {
+      margin-bottom: 24px;
+    }
+
+    .breath-toggle {
+      background: transparent !important;
+      border: 1px solid #1e1e28 !important;
+      color: #52525b !important; font-size: 11px !important;
+      padding: 6px 14px; border-radius: 8px;
+      cursor: pointer; font-weight: 600 !important;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+    .breath-toggle:hover {
+      border-color: #6366f1 !important; color: #818cf8 !important;
+    }
+    .breath-toggle.active {
+      border-color: #6366f1 !important; color: #818cf8 !important;
+      background: rgba(99,102,241,0.08) !important;
+    }
+
+    .breath-box {
+      display: none; margin-top: 24px;
+      flex-direction: column; align-items: center; gap: 0;
+    }
+    .breath-box.visible { display: flex !important; }
+
+    .breath-orb {
+      position: relative;
+      width: 140px; height: 140px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .breath-ring {
+      position: absolute; border-radius: 50%;
+      transition: transform 4s cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity 4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .breath-ring-1 {
+      width: 140px; height: 140px;
+      border: 1px solid rgba(99,102,241,0.08);
+      transform: scale(0.7); opacity: 0;
+    }
+    .breath-ring-2 {
+      width: 120px; height: 120px;
+      border: 1px solid rgba(99,102,241,0.12);
+      transform: scale(0.7); opacity: 0;
+    }
+
+    .breath-core {
+      position: relative; z-index: 2;
+      width: 80px; height: 80px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%,
+        rgba(139,92,246,0.3), rgba(99,102,241,0.15), rgba(99,102,241,0.05));
+      border: 2px solid rgba(99,102,241,0.2);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      transition: transform 4s cubic-bezier(0.4, 0, 0.2, 1),
+                  box-shadow 4s cubic-bezier(0.4, 0, 0.2, 1),
+                  border-color 4s cubic-bezier(0.4, 0, 0.2, 1),
+                  background 4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 0 rgba(99,102,241,0);
+    }
+
+    .breath-phase {
+      font-size: 12px !important; font-weight: 700 !important;
+      color: #818cf8 !important; letter-spacing: 0.5px;
+      transition: opacity 0.4s;
+    }
+
+    .breath-counter {
+      font-size: 22px !important; font-weight: 800 !important;
+      color: #e4e4e7 !important; line-height: 1;
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .breath-orb.inhale .breath-core {
+      transform: scale(1.25);
+      background: radial-gradient(circle at 35% 35%,
+        rgba(139,92,246,0.5), rgba(99,102,241,0.3), rgba(99,102,241,0.1));
+      border-color: rgba(129,140,248,0.5);
+      box-shadow: 0 0 40px rgba(99,102,241,0.25), 0 0 80px rgba(99,102,241,0.1);
+    }
+    .breath-orb.inhale .breath-ring-1 { transform: scale(1.1); opacity: 1; }
+    .breath-orb.inhale .breath-ring-2 { transform: scale(1.05); opacity: 1; }
+
+    .breath-orb.hold .breath-core {
+      transform: scale(1.25);
+      background: radial-gradient(circle at 35% 35%,
+        rgba(167,139,250,0.5), rgba(139,92,246,0.3), rgba(99,102,241,0.1));
+      border-color: rgba(167,139,250,0.5);
+      box-shadow: 0 0 50px rgba(139,92,246,0.3), 0 0 100px rgba(99,102,241,0.12);
+      transition: background 0.5s, border-color 0.5s, box-shadow 0.5s;
+    }
+    .breath-orb.hold .breath-ring-1 {
+      transform: scale(1.1); opacity: 0.8;
+      animation: ringPulse 2s ease-in-out infinite;
+    }
+    .breath-orb.hold .breath-ring-2 {
+      transform: scale(1.05); opacity: 0.6;
+      animation: ringPulse 2s ease-in-out 0.5s infinite;
+    }
+
+    @keyframes ringPulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    .breath-orb.exhale .breath-core {
+      transform: scale(1);
+      background: radial-gradient(circle at 35% 35%,
+        rgba(139,92,246,0.15), rgba(99,102,241,0.08), rgba(99,102,241,0.03));
+      border-color: rgba(99,102,241,0.15);
+      box-shadow: 0 0 0 rgba(99,102,241,0);
+    }
+    .breath-orb.exhale .breath-ring-1 { transform: scale(0.7); opacity: 0; }
+    .breath-orb.exhale .breath-ring-2 { transform: scale(0.7); opacity: 0; }
+
+    .breath-info {
+      margin-top: 16px;
+      font-size: 10px !important; color: #3f3f46 !important;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Bypass ── */
+    .bypass-section {
+      margin-top: 4px; padding-top: 20px;
+      border-top: 1px solid #1a1a20 !important;
+    }
+    .bypass-section.hidden { display: none !important; }
+
+    .bypass-label {
+      font-size: 11px !important; color: #3f3f46 !important;
+      margin-bottom: 10px; text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .bypass-buttons {
+      display: flex !important; gap: 10px; justify-content: center;
+    }
+
+    .btn-bypass {
+      padding: 9px 18px !important; border-radius: 8px;
+      font-size: 12px !important; font-weight: 600 !important;
+      cursor: pointer; transition: all 0.2s;
+      text-decoration: none !important; display: inline-block !important;
+    }
+
+    .btn-extra {
+      background: transparent !important; background-color: transparent !important;
+      border: 1px solid #27272a !important; color: #71717a !important;
+    }
+    .btn-extra:hover { border-color: #6366f1 !important; color: #818cf8 !important; }
+
+    .btn-ignore {
+      background: transparent !important; background-color: transparent !important;
+      border: 1px solid #27272a !important; color: #52525b !important;
+    }
+    .btn-ignore:hover { border-color: #dc2626 !important; color: #ef4444 !important; }
+
+    .btn-bypass:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+
+    .btn-bypass.loading { position: relative; color: transparent !important; }
+    .btn-bypass.loading::after {
+      content: ''; position: absolute;
+      width: 14px; height: 14px; top: 50%; left: 50%;
+      margin: -7px 0 0 -7px;
+      border: 2px solid #3f3f46; border-top-color: #e4e4e7;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+
+    /* ── Pomodoro Timer ── */
+    .pomodoro-section {
+      margin-bottom: 24px;
+    }
+
+    .pomodoro-toggle {
+      background: transparent !important;
+      border: 1px solid #1e1e28 !important;
+      color: #52525b !important; font-size: 11px !important;
+      padding: 6px 14px; border-radius: 8px;
+      cursor: pointer; font-weight: 600 !important;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+    .pomodoro-toggle:hover {
+      border-color: #22c55e !important; color: #4ade80 !important;
+    }
+    .pomodoro-toggle.active {
+      border-color: #22c55e !important; color: #4ade80 !important;
+      background: rgba(34,197,94,0.08) !important;
+    }
+
+    .pomodoro-box {
+      display: none; margin-top: 20px;
+      flex-direction: column; align-items: center; gap: 16px;
+    }
+    .pomodoro-box.visible { display: flex !important; }
+
+    .pomodoro-ring-container {
+      position: relative; width: 160px; height: 160px;
+    }
+
+    .pomodoro-ring-svg {
+      width: 160px; height: 160px;
+      transform: rotate(-90deg);
+    }
+    .pomodoro-ring-bg {
+      fill: none; stroke: #1e1e28; stroke-width: 6;
+    }
+    .pomodoro-ring-progress {
+      fill: none; stroke-width: 6;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear, stroke 0.3s;
+    }
+
+    .pomodoro-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+
+    .pomodoro-time {
+      font-size: 32px !important; font-weight: 800 !important;
+      color: #e4e4e7 !important; font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .pomodoro-label {
+      font-size: 11px !important; font-weight: 700 !important;
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    .pomodoro-label.focus { color: #22c55e !important; }
+    .pomodoro-label.break { color: #eab308 !important; }
+
+    .pomodoro-controls {
+      display: flex; gap: 8px; align-items: center;
+    }
+
+    .pomodoro-btn {
+      padding: 7px 16px; border-radius: 8px;
+      font-size: 11px !important; font-weight: 600 !important;
+      cursor: pointer; transition: all 0.2s;
+      background: transparent !important;
+      border: 1px solid #27272a !important;
+      color: #71717a !important;
+    }
+    .pomodoro-btn:hover { border-color: #6366f1 !important; color: #818cf8 !important; }
+    .pomodoro-btn.primary {
+      background: rgba(34,197,94,0.12) !important;
+      border-color: rgba(34,197,94,0.3) !important;
+      color: #4ade80 !important;
+    }
+    .pomodoro-btn.primary:hover {
+      background: rgba(34,197,94,0.2) !important;
+      border-color: #22c55e !important;
+    }
+
+    .pomodoro-cycles {
+      font-size: 10px !important; color: #3f3f46 !important;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Entry Challenge Mode ── */
+    .entry-mode .bypass-section { display: none !important; }
+    .entry-mode .breath-section { display: none !important; }
+    .entry-mode .pomodoro-section { display: none !important; }
+
+    .entry-actions {
+      display: none;
+      margin-top: 16px;
+    }
+    .entry-mode .entry-actions { display: block !important; }
+
+    .btn-entry-proceed {
+      display: block; width: 100%;
+      padding: 12px; border-radius: 8px;
+      background: rgba(34,197,94,0.12) !important;
+      border: 1px solid rgba(34,197,94,0.3) !important;
+      color: #4ade80 !important;
+      font-size: 13px !important; font-weight: 700 !important;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-entry-proceed:hover {
+      background: rgba(34,197,94,0.2) !important;
+      border-color: #22c55e !important;
+    }
+    .btn-entry-proceed:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Timer ── */
+    .timer {
+      margin-top: 16px; font-size: 12px !important; color: #3f3f46 !important;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <div class="container" id="mainContainer">
+    <div class="logo"><img src="icons/logo.png" alt="Focus Guard"></div>
+
+    <!-- Nuclear Alert -->
+    <div class="nuclear-alert">
+      <div class="nuclear-alert-icon">&#9762;</div>
+      <div class="nuclear-alert-text">NUCLEAR OPTION ATIVA</div>
+      <div class="nuclear-alert-time" id="nuclearAlertTime">Sites bloqueados até --</div>
+    </div>
+
+    <h1>Tempo esgotado!</h1>
+    <div class="site-name" id="siteName"></div>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value over" id="statUsed">--</div>
+        <div class="stat-label">Usado</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="statLimit">--</div>
+        <div class="stat-label">Limite</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="statTotal">--</div>
+        <div class="stat-label">Total hoje</div>
+      </div>
+    </div>
+
+    <p class="message">
+      Você atingiu seu limite diário nesse site.<br>
+      <strong>Volte a focar no que importa.</strong>
+    </p>
+
+    <div class="quote" id="quote"></div>
+
+    <!-- Challenge Section -->
+    <div class="challenge-section" id="challengeSection">
+      <div class="challenge-label">Complete o desafio para desbloquear</div>
+      <div class="challenge-text" id="challengeText"></div>
+      <textarea class="challenge-input" id="challengeInput" placeholder="Digite o texto acima exatamente como está..." spellcheck="false"></textarea>
+      <div class="challenge-hint" id="challengeHint">Copiar e colar está desabilitado. Digite manualmente.</div>
+      <button class="btn-challenge-verify" id="btnChallengeVerify">Verificar desafio</button>
+    </div>
+
+    <!-- Breathing Exercise -->
+    <div class="breath-section">
+      <button class="breath-toggle" id="breathToggle">Exercício de respiração</button>
+      <div class="breath-box" id="breathBox">
+        <div class="breath-orb" id="breathOrb">
+          <div class="breath-ring breath-ring-1"></div>
+          <div class="breath-ring breath-ring-2"></div>
+          <div class="breath-core">
+            <span class="breath-phase" id="breathPhase">Pronto</span>
+            <span class="breath-counter" id="breathCounter">4</span>
+          </div>
+        </div>
+        <div class="breath-info">4s inspirar - 4s segurar - 4s expirar</div>
+      </div>
+    </div>
+
+    <!-- Pomodoro Timer -->
+    <div class="pomodoro-section">
+      <button class="pomodoro-toggle" id="pomodoroToggle">Timer Pomodoro</button>
+      <div class="pomodoro-box" id="pomodoroBox">
+        <div class="pomodoro-ring-container">
+          <svg class="pomodoro-ring-svg" viewBox="0 0 160 160">
+            <circle class="pomodoro-ring-bg" cx="80" cy="80" r="70"></circle>
+            <circle class="pomodoro-ring-progress" id="pomodoroRing" cx="80" cy="80" r="70"
+              stroke="#22c55e" stroke-dasharray="439.82" stroke-dashoffset="0"></circle>
+          </svg>
+          <div class="pomodoro-center">
+            <span class="pomodoro-time" id="pomodoroTime">25:00</span>
+            <span class="pomodoro-label focus" id="pomodoroLabel">FOCO</span>
+          </div>
+        </div>
+        <div class="pomodoro-controls">
+          <button class="pomodoro-btn primary" id="pomodoroStart">Iniciar</button>
+          <button class="pomodoro-btn" id="pomodoroPause" style="display:none">Pausar</button>
+          <button class="pomodoro-btn" id="pomodoroReset">Resetar</button>
+        </div>
+        <div class="pomodoro-cycles" id="pomodoroCycles">Ciclos completos: 0</div>
+      </div>
+    </div>
+
+    <!-- Bypass -->
+    <div class="bypass-section" id="bypassSection">
+      <div class="bypass-label">Precisa de mais tempo?</div>
+      <div class="bypass-buttons">
+        <button class="btn-bypass btn-extra" id="btnExtra" aria-label="Adicionar 5 minutos extras">+5 minutos</button>
+        <button class="btn-bypass btn-ignore" id="btnIgnore" aria-label="Ignorar bloqueio por hoje">Ignorar por hoje</button>
+      </div>
+    </div>
+
+    <!-- Entry Challenge Actions (shown only in entry mode) -->
+    <div class="entry-actions" id="entryActions">
+      <button class="btn-entry-proceed" id="btnEntryProceed" disabled>Acessar site</button>
+    </div>
+
+    <div class="timer" id="countdown">O acesso será liberado amanhã automaticamente.</div>
+  </div>
+
+  <script src="blocked.js"></script>
+</body>
+</html>
