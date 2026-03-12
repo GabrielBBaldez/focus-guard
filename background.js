@@ -1,3 +1,5 @@
+importScripts('defaults.js');
+
 // Focus Guard - Background Service Worker
 // Tracks time spent on configured sites and blocks when limit exceeded
 
@@ -529,7 +531,7 @@ async function startTracking() {
     if (trackedHost && activeHostname === trackedHost) {
       await addUsage(trackedHost, 1);
     }
-  }, 1000);
+  }, DEFAULTS.BADGE_UPDATE_INTERVAL);
 }
 
 function stopTracking() {
@@ -773,11 +775,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const data = await chrome.storage.local.get(STORAGE_KEYS.EXTRA);
         const extra = data[STORAGE_KEYS.EXTRA] || {};
         const current = extra[pattern] || 0;
-        if (current >= 3600) {
+        if (current >= DEFAULTS.MAX_EXTRA_SECONDS) {
           sendResponse({ error: 'Limite de tempo extra atingido (60min)' });
           return;
         }
-        extra[pattern] = Math.min(current + (minutes * 60), 3600);
+        extra[pattern] = Math.min(current + (minutes * 60), DEFAULTS.MAX_EXTRA_SECONDS);
         await chrome.storage.local.set({ [STORAGE_KEYS.EXTRA]: extra });
         updateBadge();
 

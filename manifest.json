@@ -35,7 +35,7 @@
     }
   ],
   "web_accessible_resources": [{
-    "resources": ["blocked.html", "icons/logo.png"],
+    "resources": ["blocked.html", "icons/logo.png", "defaults.js"],
     "matches": ["<all_urls>"]
   }]
 }
