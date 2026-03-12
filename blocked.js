@@ -9,6 +9,24 @@ var isWeeklyBlock = params.get('reason') === 'weekly';
 var siteIsValid = false; // will be validated against storage
 var configuredExtraMin = 5; // will be loaded from storage
 
+// ── Toast Notifications ──
+function showToast(message, type) {
+  type = type || 'info';
+  var container = document.getElementById('toastContainer');
+  var toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = message;
+  container.appendChild(toast);
+  // Trigger animation
+  requestAnimationFrame(function() {
+    toast.classList.add('visible');
+  });
+  setTimeout(function() {
+    toast.classList.remove('visible');
+    setTimeout(function() { toast.remove(); }, 300);
+  }, DEFAULTS.TOAST_DURATION);
+}
+
 document.getElementById('siteName').textContent = site;
 
 // ── Entry Challenge Mode ──
@@ -67,6 +85,14 @@ var quotes = [
   '"Não é que temos pouco tempo, mas que perdemos muito." \u2014 Sêneca'
 ];
 document.getElementById('quote').textContent = quotes[Math.floor(Math.random() * quotes.length)];
+
+// Streak message
+chrome.runtime.sendMessage({ type: 'getStreak' }, function(streak) {
+  if (chrome.runtime.lastError || !streak || streak.current <= 0) return;
+  var el = document.getElementById('streakMessage');
+  el.textContent = 'Você tem um streak de ' + streak.current + ' dias. Não quebre agora!';
+  el.style.display = '';
+});
 
 // ── Stats ──
 function formatMin(seconds) {
@@ -165,6 +191,21 @@ challengeInput.addEventListener('drop', function(e) {
   e.preventDefault();
 });
 
+// Progress bar update
+challengeInput.addEventListener('input', function() {
+  if (!originalChallengeText) return;
+  var typed = this.value.length;
+  var total = originalChallengeText.length;
+  var pct = Math.min((typed / total) * 100, 100);
+  var fill = document.getElementById('challengeProgressFill');
+  fill.style.width = pct + '%';
+  if (pct >= 100) {
+    fill.classList.add('complete');
+  } else {
+    fill.classList.remove('complete');
+  }
+});
+
 // Load challenge
 chrome.runtime.sendMessage({ type: 'getChallenge' }, function(response) {
   if (chrome.runtime.lastError || !response) return;
@@ -204,6 +245,7 @@ btnChallengeVerify.addEventListener('click', function() {
 
     if (response.ok) {
       challengePassed = true;
+      document.getElementById('challengeSection').classList.add('challenge-success');
       challengeInput.classList.remove('error');
       challengeInput.classList.add('success');
 
@@ -286,14 +328,31 @@ function stopBreathing() {
   breathCounter.textContent = '4';
 }
 
+var breathingPhases = DEFAULTS.BREATHING_PATTERN.phases;
+
+chrome.storage.local.get('focusGuard_breathingConfig', function(data) {
+  if (data.focusGuard_breathingConfig && data.focusGuard_breathingConfig.phases) {
+    breathingPhases = data.focusGuard_breathingConfig.phases;
+    var info = breathingPhases.map(function(p) { return p.seconds + 's ' + p.label.toLowerCase(); }).join(' - ');
+    var infoEl = document.querySelector('.breath-info');
+    if (infoEl) infoEl.textContent = info;
+  }
+});
+
 function startBreathing() {
   stopBreathing();
-  runPhase('inhale', 'Inspire', 4, function() {
-    runPhase('hold', 'Segure', 4, function() {
-      runPhase('exhale', 'Expire', 4, function() {
-        startBreathing();
-      });
-    });
+  runPhaseSequence(0);
+}
+
+function runPhaseSequence(index) {
+  if (index >= breathingPhases.length) {
+    startBreathing();
+    return;
+  }
+  var phase = breathingPhases[index];
+  var className = index === 0 ? 'inhale' : (phase.label === 'Expire' ? 'exhale' : 'hold');
+  runPhase(className, phase.label, phase.seconds, function() {
+    runPhaseSequence(index + 1);
   });
 }
 
@@ -331,8 +390,8 @@ var pomodoroStart = document.getElementById('pomodoroStart');
 var pomodoroPause = document.getElementById('pomodoroPause');
 var pomodoroReset = document.getElementById('pomodoroReset');
 
-var POMODORO_FOCUS = 25 * 60; // 25 minutes
-var POMODORO_BREAK = 5 * 60;  // 5 minutes
+var POMODORO_FOCUS = DEFAULTS.POMODORO_FOCUS;
+var POMODORO_BREAK = DEFAULTS.POMODORO_BREAK;
 var RING_CIRCUMFERENCE = 2 * Math.PI * 70; // ~439.82
 
 var pomodoroState = {
@@ -344,6 +403,19 @@ var pomodoroState = {
   cycles: 0,
   interval: null
 };
+
+chrome.storage.local.get('focusGuard_pomodoroConfig', function(data) {
+  var config = data.focusGuard_pomodoroConfig;
+  if (config) {
+    POMODORO_FOCUS = config.focus || DEFAULTS.POMODORO_FOCUS;
+    POMODORO_BREAK = config.break || DEFAULTS.POMODORO_BREAK;
+    if (!pomodoroState.running) {
+      pomodoroState.remaining = POMODORO_FOCUS;
+      pomodoroState.total = POMODORO_FOCUS;
+      updatePomodoroDisplay();
+    }
+  }
+});
 
 pomodoroToggle.addEventListener('click', function() {
   var visible = pomodoroBox.classList.toggle('visible');
@@ -375,6 +447,11 @@ function updatePomodoroDisplay() {
   }
 
   pomodoroCyclesEl.textContent = 'Ciclos completos: ' + pomodoroState.cycles;
+
+  var ring = document.getElementById('pomodoroRing');
+  if (ring) {
+    ring.setAttribute('aria-valuenow', Math.round((pomodoroState.remaining / pomodoroState.total) * 100));
+  }
 }
 
 function startPomodoro() {
@@ -491,51 +568,24 @@ function safeRedirect(url) {
   window.location.href = url;
 }
 
-function sendBypass(btn, message, attempt) {
-  attempt = attempt || 1;
-  if (btn.disabled && attempt === 1) return;
+function sendBypass(btn, msg) {
   btn.disabled = true;
-  btn.classList.add('loading');
-
-  var timeout = setTimeout(function() {
-    btn.disabled = false;
-    btn.classList.remove('loading');
-  }, 8000);
-
-  try {
-    chrome.runtime.sendMessage(message, function(response) {
-      clearTimeout(timeout);
-
-      if (chrome.runtime.lastError) {
-        if (attempt < 3) {
-          setTimeout(function() { sendBypass(btn, message, attempt + 1); }, 500);
-        } else {
-          btn.disabled = false;
-          btn.classList.remove('loading');
-          alert('Erro de comunicação. Tente novamente.');
-        }
-        return;
-      }
-
-      if (response && response.ok) {
-        // Use the redirect URL from background (already validated there)
-        window.location.href = response.redirectUrl;
-      } else if (response && response.error) {
-        btn.disabled = false;
-        btn.classList.remove('loading');
-        alert(response.error);
-      } else {
-        btn.disabled = false;
-        btn.classList.remove('loading');
-        alert('Erro inesperado. Tente novamente.');
-      }
-    });
-  } catch (e) {
-    clearTimeout(timeout);
-    btn.disabled = false;
-    btn.classList.remove('loading');
-    alert('Erro de comunicação. Tente novamente.');
-  }
+  chrome.runtime.sendMessage(msg, function(response) {
+    if (chrome.runtime.lastError || !response) {
+      btn.disabled = false;
+      showToast('Erro de comunicação com a extensão.', 'error');
+      return;
+    }
+    if (response.error) {
+      btn.disabled = false;
+      showToast(response.error, 'error');
+      return;
+    }
+    if (response.ok && response.redirectUrl) {
+      showToast('Redirecionando...', 'success');
+      safeRedirect(response.redirectUrl);
+    }
+  });
 }
 
 document.getElementById('btnExtra').addEventListener('click', function() {
@@ -549,15 +599,25 @@ document.getElementById('btnIgnore').addEventListener('click', function() {
 // ── Countdown to midnight ──
 function updateCountdown() {
   var now = new Date();
-  var midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  var diff = midnight - now;
-  var h = Math.floor(diff / 3600000);
-  var m = Math.floor((diff % 3600000) / 60000);
-  var countdownText = isWeeklyBlock
-    ? 'Limite semanal reseta em ' + h + 'h ' + m + 'min'
-    : 'Acesso liberado em ' + h + 'h ' + m + 'min';
-  document.getElementById('countdown').textContent = countdownText;
+  if (isWeeklyBlock) {
+    // Weekly blocks: show usage context with actual data
+    chrome.runtime.sendMessage({ type: 'getWeeklyUsage', site: site }, function(resp) {
+      if (chrome.runtime.lastError || !resp) return;
+      var usedH = Math.floor(resp.used / 3600);
+      var usedM = Math.floor((resp.used % 3600) / 60);
+      var limitH = Math.floor(resp.limit / 3600);
+      var limitM = Math.floor((resp.limit % 3600) / 60);
+      document.getElementById('countdown').textContent =
+        'Uso semanal: ' + usedH + 'h' + usedM + 'min / ' + limitH + 'h' + limitM + 'min — reseta conforme dias antigos saem da janela de 7 dias.';
+    });
+  } else {
+    var midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    var diff = midnight - now;
+    var h = Math.floor(diff / 3600000);
+    var m = Math.floor((diff % 3600000) / 60000);
+    document.getElementById('countdown').textContent = 'Acesso liberado em ' + h + 'h ' + m + 'min';
+  }
 }
 if (!isEntryMode) {
   updateCountdown();

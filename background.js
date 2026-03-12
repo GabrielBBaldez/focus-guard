@@ -143,8 +143,16 @@ function sanitizePattern(input) {
 
 // ── Storage Helpers ──
 
+let _resetLock = null;
+
 async function resetIfNewDay() {
-  const data = await chrome.storage.local.get([STORAGE_KEYS.USAGE_DATE, STORAGE_KEYS.USAGE]);
+  if (_resetLock) return _resetLock;
+  _resetLock = _doResetIfNewDay();
+  try { return await _resetLock; } finally { _resetLock = null; }
+}
+
+async function _doResetIfNewDay() {
+  const data = await chrome.storage.local.get([STORAGE_KEYS.USAGE_DATE, STORAGE_KEYS.USAGE, STORAGE_KEYS.BYPASSED, STORAGE_KEYS.EXTRA, STORAGE_KEYS.ENTRY_PASSED]);
   const today = getToday();
   if (data[STORAGE_KEYS.USAGE_DATE] !== today) {
     // Save yesterday's usage to history before resetting
@@ -156,12 +164,39 @@ async function resetIfNewDay() {
     const warnKeys = Object.keys(allKeys).filter(k => k.startsWith('_warned5_'));
     if (warnKeys.length > 0) await chrome.storage.local.remove(warnKeys);
 
+    // --- Streak evaluation (BEFORE reset) ---
+    const streakResult = await chrome.storage.local.get('focusGuard_streak');
+    const streak = streakResult.focusGuard_streak || { current: 0, best: 0, lastGoodDay: null };
+    const sites = await getTrackedSites();
+    const bypassed = data[STORAGE_KEYS.BYPASSED] || {};
+    const extra = data[STORAGE_KEYS.EXTRA] || {};
+    const usage = data[STORAGE_KEYS.USAGE] || {};
+
+    let dayGood = true;
+    for (const pattern of Object.keys(sites)) {
+      const limitSec = sites[pattern] * 60;
+      if ((usage[pattern] || 0) > limitSec) { dayGood = false; break; }
+      if (bypassed[pattern]) { dayGood = false; break; }
+      if ((extra[pattern] || 0) > 0) { dayGood = false; break; }
+    }
+
+    var evaluatedDay = data[STORAGE_KEYS.USAGE_DATE];
+    if (dayGood && Object.keys(sites).length > 0) {
+      streak.current++;
+      if (streak.current > streak.best) streak.best = streak.current;
+      streak.lastGoodDay = evaluatedDay;
+    } else {
+      streak.current = 0;
+    }
+
+    // Atomic reset: all transient data zeroed in one call
     await chrome.storage.local.set({
       [STORAGE_KEYS.USAGE]: {},
       [STORAGE_KEYS.USAGE_DATE]: today,
       [STORAGE_KEYS.BYPASSED]: {},
       [STORAGE_KEYS.EXTRA]: {},
-      [STORAGE_KEYS.ENTRY_PASSED]: {}
+      [STORAGE_KEYS.ENTRY_PASSED]: {},
+      focusGuard_streak: streak
     });
     return {};
   }
@@ -225,18 +260,13 @@ async function snapshotToday() {
 // ── Weekly Usage ──
 
 async function getWeeklyUsage(pattern) {
-  const data = await chrome.storage.local.get([STORAGE_KEYS.HISTORY, STORAGE_KEYS.USAGE, STORAGE_KEYS.USAGE_DATE]);
-  const history = data[STORAGE_KEYS.HISTORY] || {};
-  const todayUsage = data[STORAGE_KEYS.USAGE] || {};
-  const usageDate = data[STORAGE_KEYS.USAGE_DATE];
-
-  const todayStr = getToday();
-  // Only count live usage if it's actually from today (avoids double-count before reset)
-  let total = (usageDate === todayStr) ? (todayUsage[pattern] || 0) : 0;
-
-  // Sum last 6 days from history (today is already counted from live usage)
+  // Read exclusively from history for the full 7-day window.
+  // Callers in blocking-critical paths must call saveToHistory() BEFORE this.
+  const histData = await chrome.storage.local.get(STORAGE_KEYS.HISTORY);
+  const history = histData[STORAGE_KEYS.HISTORY] || {};
+  let total = 0;
   const today = new Date();
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 0; i <= 6; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -244,7 +274,6 @@ async function getWeeklyUsage(pattern) {
       total += history[dateStr][pattern];
     }
   }
-
   return total;
 }
 
@@ -414,6 +443,11 @@ async function addUsage(hostname, seconds) {
   const weeklyData = await chrome.storage.local.get(STORAGE_KEYS.WEEKLY_LIMITS);
   const weeklyLimits = weeklyData[STORAGE_KEYS.WEEKLY_LIMITS] || {};
   if (weeklyLimits[pattern]) {
+    // Before checking weekly limit, flush current usage to history
+    const liveData = await chrome.storage.local.get([STORAGE_KEYS.USAGE, STORAGE_KEYS.USAGE_DATE]);
+    if (liveData[STORAGE_KEYS.USAGE_DATE]) {
+      await saveToHistory(liveData[STORAGE_KEYS.USAGE_DATE], liveData[STORAGE_KEYS.USAGE] || {});
+    }
     const weeklyUsed = await getWeeklyUsage(pattern);
     if (weeklyUsed >= weeklyLimits[pattern] * 60) {
       blockSite(pattern, 'weekly');
@@ -500,6 +534,11 @@ async function checkIfBlocked(url) {
   const weeklyLimitData = await chrome.storage.local.get(STORAGE_KEYS.WEEKLY_LIMITS);
   const weeklyLimits = weeklyLimitData[STORAGE_KEYS.WEEKLY_LIMITS] || {};
   if (weeklyLimits[pattern]) {
+    // Before checking weekly limit, flush current usage to history
+    const liveData2 = await chrome.storage.local.get([STORAGE_KEYS.USAGE, STORAGE_KEYS.USAGE_DATE]);
+    if (liveData2[STORAGE_KEYS.USAGE_DATE]) {
+      await saveToHistory(liveData2[STORAGE_KEYS.USAGE_DATE], liveData2[STORAGE_KEYS.USAGE] || {});
+    }
     const weeklyUsed = await getWeeklyUsage(pattern);
     if (weeklyUsed >= weeklyLimits[pattern] * 60) return 'weekly';
   }
@@ -642,6 +681,13 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
+  if (msg.type === 'getStreak') {
+    chrome.storage.local.get('focusGuard_streak', function(data) {
+      sendResponse(data.focusGuard_streak || { current: 0, best: 0, lastGoodDay: null });
+    });
+    return true;
+  }
+
   // Get usage data (for popup and blocked page)
   if (msg.type === 'getUsage') {
     (async () => {
@@ -718,12 +764,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (!pattern) { sendResponse({ error: 'Site inválido' }); return; }
 
         if (await isNuclearBlocked(pattern)) {
-          sendResponse({ error: 'Nuclear Option ativa - impossível desbloquear' });
+          sendResponse({ error: 'Modo nuclear ativo — impossível desbloquear', reason: 'nuclear' });
           return;
         }
 
         const sites = await getTrackedSites();
         if (!sites[pattern]) { sendResponse({ error: 'Site não rastreado' }); return; }
+
+        // Check weekly limit
+        const weeklyLimitData = await chrome.storage.local.get(STORAGE_KEYS.WEEKLY_LIMITS);
+        const weeklyLimits = weeklyLimitData[STORAGE_KEYS.WEEKLY_LIMITS] || {};
+        if (weeklyLimits[pattern]) {
+          const weeklyUsed = await getWeeklyUsage(pattern);
+          if (weeklyUsed >= weeklyLimits[pattern] * 60) {
+            sendResponse({ error: 'Limite semanal atingido — bypass não disponível esta semana.', reason: 'weekly_limit' });
+            return;
+          }
+        }
+
+        // Check if challenge is required
+        const challengeData = await chrome.storage.local.get([STORAGE_KEYS.CHALLENGE, STORAGE_KEYS.ENTRY_PASSED]);
+        if (challengeData[STORAGE_KEYS.CHALLENGE]?.enabled && !challengeData[STORAGE_KEYS.ENTRY_PASSED]?.[pattern]) {
+          sendResponse({ error: 'Desafio necessário para desbloquear opções.', reason: 'challenge' });
+          return;
+        }
 
         const data = await chrome.storage.local.get(STORAGE_KEYS.BYPASSED);
         const bypassed = data[STORAGE_KEYS.BYPASSED] || {};
@@ -754,7 +818,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (!pattern) { sendResponse({ error: 'Site inválido' }); return; }
 
         if (await isNuclearBlocked(pattern)) {
-          sendResponse({ error: 'Nuclear Option ativa - impossível adicionar tempo' });
+          sendResponse({ error: 'Modo nuclear ativo — impossível adicionar tempo', reason: 'nuclear' });
           return;
         }
 
@@ -767,7 +831,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (weeklyLimits[pattern]) {
           const weeklyUsed = await getWeeklyUsage(pattern);
           if (weeklyUsed >= weeklyLimits[pattern] * 60) {
-            sendResponse({ error: 'Limite semanal atingido — tempo extra não pode ajudar' });
+            sendResponse({ error: 'Limite semanal atingido — tempo extra não pode ajudar', reason: 'weekly_limit' });
             return;
           }
         }
@@ -776,7 +840,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const extra = data[STORAGE_KEYS.EXTRA] || {};
         const current = extra[pattern] || 0;
         if (current >= DEFAULTS.MAX_EXTRA_SECONDS) {
-          sendResponse({ error: 'Limite de tempo extra atingido (60min)' });
+          sendResponse({ error: 'Você já usou todo o tempo extra de hoje (máximo 60 minutos).', reason: 'max_extra' });
           return;
         }
         extra[pattern] = Math.min(current + (minutes * 60), DEFAULTS.MAX_EXTRA_SECONDS);
@@ -1006,10 +1070,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       try {
         const pattern = sanitizePattern(msg.site);
-        if (!pattern) { sendResponse({ seconds: 0 }); return; }
+        if (!pattern) { sendResponse({ seconds: 0, used: 0, limit: 0 }); return; }
         const seconds = await getWeeklyUsage(pattern);
-        sendResponse({ seconds });
-      } catch { sendResponse({ seconds: 0 }); }
+        const weeklyLimitData = await chrome.storage.local.get(STORAGE_KEYS.WEEKLY_LIMITS);
+        const weeklyLimits = weeklyLimitData[STORAGE_KEYS.WEEKLY_LIMITS] || {};
+        const limitSeconds = (weeklyLimits[pattern] || 0) * 60;
+        sendResponse({ seconds, used: seconds, limit: limitSeconds });
+      } catch { sendResponse({ seconds: 0, used: 0, limit: 0 }); }
     })();
     return true;
   }
@@ -1033,6 +1100,13 @@ chrome.runtime.onInstalled.addListener(async () => {
       [STORAGE_KEYS.USAGE_DATE]: getToday(),
       [STORAGE_KEYS.ENABLED]: true,
       [STORAGE_KEYS.CHALLENGE]: { enabled: true, difficulty: 'medium' }
+    });
+  }
+
+  const streakData = await chrome.storage.local.get('focusGuard_streak');
+  if (!streakData.focusGuard_streak) {
+    await chrome.storage.local.set({
+      focusGuard_streak: { current: 0, best: 0, lastGoodDay: null }
     });
   }
 });

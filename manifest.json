@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Focus Guard",
-  "version": "1.1",
+  "version": "2.0",
   "description": "Bloqueie sites que distraem apos um tempo limite diario. Historico, Nuclear Option, desafios e mais.",
   "permissions": [
     "storage",
@@ -35,7 +35,7 @@
     }
   ],
   "web_accessible_resources": [{
-    "resources": ["blocked.html", "icons/logo.png", "defaults.js"],
+    "resources": ["blocked.html", "blocked.js", "icons/logo.png", "defaults.js"],
     "matches": ["<all_urls>"]
   }]
 }

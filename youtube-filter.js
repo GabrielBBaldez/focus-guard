@@ -8,26 +8,38 @@
   var styleEl = null;
   var observer = null;
 
-  var SHORTS_CSS = [
-    // Shorts shelf on home page
+  // Layer 1: Primary selectors (YouTube custom elements)
+  var SHORTS_SELECTORS_L1 = [
     'ytd-rich-shelf-renderer[is-shorts]',
     'ytd-reel-shelf-renderer',
-    // Shorts tab in channel pages
-    'tp-yt-paper-tab:has(> .tab-content > yt-icon > span > div > svg > path[d*="m18 9.28"])',
-    // Shorts in search results
-    'ytd-reel-shelf-renderer',
-    // Shorts navigation link in sidebar
-    'ytd-guide-entry-renderer:has(a[title="Shorts"])',
-    'ytd-mini-guide-entry-renderer:has(a[title="Shorts"])',
-    // Shorts in notifications
-    'ytd-notification-renderer:has(a[href*="/shorts/"])',
-    // Shorts badges and chips
-    'yt-chip-cloud-chip-renderer:has(yt-formatted-string[title="Shorts"])',
-    // Shorts in browse/explore
-    'ytd-grid-video-renderer:has(a[href*="/shorts/"])',
-    'ytd-video-renderer:has(a[href*="/shorts/"])',
-    'ytd-rich-item-renderer:has(a[href*="/shorts/"])'
-  ].join(',\n');
+    'ytd-guide-entry-renderer a[title="Shorts"]'
+  ];
+
+  // Layer 2: Fallback selectors (data attributes, href patterns)
+  var SHORTS_SELECTORS_L2 = [
+    'a[href*="/shorts/"]',
+    '[is-shorts]',
+    'ytd-mini-guide-entry-renderer a[title="Shorts"]'
+  ];
+
+  // Layer 3: Heuristic selectors (text/aria-label based)
+  var SHORTS_SELECTORS_L3 = [
+    '[aria-label*="Shorts"]'
+  ];
+
+  var SHORTS_CSS = SHORTS_SELECTORS_L1.join(',\n');
+
+  function applyFallbackLayer(layer) {
+    var selectors = layer === 2 ? SHORTS_SELECTORS_L2 : SHORTS_SELECTORS_L3;
+    var style = document.getElementById('focusGuardFallbackCSS');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'focusGuardFallbackCSS';
+      document.head.appendChild(style);
+    }
+    var css = selectors.map(function(s) { return s + ' { display: none !important; }'; }).join('\n');
+    style.textContent += '\n' + css;
+  }
 
   var COMMENTS_CSS = [
     // Comments section on video page
@@ -107,6 +119,22 @@
     }
   });
   observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+
+  setTimeout(function() {
+    chrome.storage.local.get(STORAGE_KEY_SHORTS, function(data) {
+      if (!data[STORAGE_KEY_SHORTS]) return; // Shorts hiding is off
+      if (!document.querySelector(SHORTS_SELECTORS_L1.join(','))) {
+        console.warn('[Focus Guard] Layer 1 Shorts selectors found nothing. Trying Layer 2.');
+        applyFallbackLayer(2);
+        setTimeout(function() {
+          if (!document.querySelector(SHORTS_SELECTORS_L2.join(','))) {
+            console.warn('[Focus Guard] Layer 2 Shorts selectors found nothing. Trying Layer 3.');
+            applyFallbackLayer(3);
+          }
+        }, 2000);
+      }
+    });
+  }, 3000);
 
   // Listen for storage changes (real-time toggle)
   chrome.storage.onChanged.addListener(function(changes, area) {

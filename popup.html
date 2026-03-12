@@ -5,7 +5,15 @@
   <meta name="color-scheme" content="dark">
   <meta name="darkreader-lock">
   <style>
-    :root { color-scheme: dark !important; }
+    :root {
+      color-scheme: dark !important;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-full: 9999px;
+      --transition-fast: 150ms ease;
+      --transition-normal: 300ms ease;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
@@ -76,8 +84,27 @@
     .tab-btn:hover { color: #a1a1aa; }
     .tab-btn.active { color: #818cf8; border-bottom-color: #6366f1; }
 
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+    .tabs-container {
+      position: relative;
+      overflow: hidden;
+      max-height: 380px;
+    }
+    .tab-panel {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      visibility: hidden;
+      opacity: 0;
+      transform: translateX(20px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+    }
+    .tab-panel.active {
+      position: relative;
+      visibility: visible;
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
 
     /* ── Nuclear Banner ── */
     .nuclear-banner {
@@ -488,6 +515,162 @@
 
     /* ── Error flash ── */
     .input-error { border-color: #dc2626 !important; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    :focus-visible {
+      outline: 2px solid #6366f1;
+      outline-offset: 2px;
+    }
+
+    .config-category {
+      margin-top: 16px;
+    }
+    .config-category:first-child {
+      margin-top: 0;
+    }
+    .config-category-header {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #71717a;
+      padding: 8px 0 4px;
+      border-bottom: 1px solid #27272a;
+      margin-bottom: 8px;
+    }
+    .config-category-header.danger {
+      color: #ef4444;
+      border-bottom-color: #7f1d1d;
+    }
+    .config-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .config-select {
+      background: #27272a;
+      color: #e4e4e7;
+      border: 1px solid #3f3f46;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.85rem;
+    }
+    .btn-config {
+      background: #27272a;
+      color: #e4e4e7;
+      border: 1px solid #3f3f46;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-config:hover {
+      background: #3f3f46;
+    }
+
+    [data-tooltip] {
+      position: relative;
+    }
+    [data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #18181b;
+      color: #e4e4e7;
+      padding: 6px 10px;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      white-space: nowrap;
+      z-index: 100;
+      border: 1px solid #27272a;
+      pointer-events: none;
+    }
+
+
+    .site-status-icon { font-size: 0.75rem; margin-right: 4px; }
+
+    .global-progress { width: 100%; height: 3px; background: #27272a; border-radius: 2px; margin: 8px 0; }
+    .global-progress-fill { height: 100%; border-radius: 2px; transition: width 0.3s ease; }
+
+    .site-input.valid { border-color: #22c55e; }
+    .site-input.invalid { border-color: #ef4444; }
+
+    .chart-section { padding: 8px 0; }
+    .chart-title { font-size: 0.75rem; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .bar-chart, .line-chart { width: 100%; height: auto; }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .chart-legend-item { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; color: #a1a1aa; }
+    .chart-legend-color { width: 10px; height: 10px; border-radius: 2px; }
+
+    .trend-indicator {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.8rem; margin-top: 8px; padding: 6px 10px;
+      background: #27272a; border-radius: 6px;
+    }
+    .trend-indicator.down { color: #22c55e; }
+    .trend-indicator.up { color: #ef4444; }
+
+    .streak-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, #27272a, #1e1b2e);
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+    }
+    .streak-card-icon { font-size: 2rem; }
+    .streak-card-current { font-size: 1.1rem; font-weight: 700; }
+    .streak-card-best { font-size: 0.75rem; color: #71717a; }
+
+    .streak-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #27272a;
+      padding: 4px 8px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .streak-icon { font-size: 1rem; }
+    .streak-badge.hot .streak-icon { font-size: 1.2rem; filter: brightness(1.3); transform: scale(1.1); }
+    .streak-badge.fire .streak-icon { font-size: 1.4rem; filter: brightness(1.5); animation: fireGlow 1s ease infinite alternate; }
+    @keyframes fireGlow {
+      from { filter: brightness(1.3); transform: scale(1.0); }
+      to { filter: brightness(1.8); transform: scale(1.3); }
+    }
+
+    .import-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .import-modal {
+      background: #18181b; border: 1px solid #27272a;
+      border-radius: 8px; padding: 20px; max-width: 360px; width: 90%;
+    }
+    .import-modal h3 { margin: 0 0 12px; font-size: 1rem; }
+    .import-preview { font-size: 0.8rem; color: #a1a1aa; margin-bottom: 16px; max-height: 200px; overflow-y: auto; }
+    .import-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .import-actions .btn-config { flex: 1; min-width: 100px; }
   </style>
 </head>
 <body>
@@ -505,6 +688,10 @@
       <input type="checkbox" id="enableToggle" checked>
       <span class="toggle-track"></span>
     </label>
+    <div class="streak-badge" id="streakBadge" data-tooltip="Dias consecutivos dentro do limite" style="display:none">
+      <span class="streak-icon">&#128293;</span>
+      <span class="streak-count" id="streakCount">0</span>
+    </div>
   </div>
 
   <!-- Nuclear Banner -->
@@ -514,15 +701,20 @@
     <div class="nb-time" id="nuclearTime">--</div>
   </div>
 
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="sites">Sites</button>
-    <button class="tab-btn" data-tab="history">Histórico</button>
-    <button class="tab-btn" data-tab="settings">Config</button>
+  <div class="global-progress" id="globalProgress">
+    <div class="global-progress-fill" id="globalProgressFill"></div>
   </div>
 
+  <!-- Tabs -->
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab="sites" role="tab" aria-label="Aba de sites rastreados">Sites</button>
+    <button class="tab-btn" data-tab="history" role="tab" aria-label="Aba de histórico">Histórico</button>
+    <button class="tab-btn" data-tab="settings" role="tab" aria-label="Aba de configurações">Config</button>
+  </div>
+
+  <div class="tabs-container">
   <!-- SITES TAB -->
-  <div class="tab-panel active" id="tab-sites">
+  <div class="tab-panel active" id="tab-sites" role="tabpanel">
     <div class="total-bar">
       <span class="total-label">Tempo total hoje</span>
       <span class="total-value" id="totalTime">0s</span>
@@ -533,7 +725,7 @@
     <div class="add-section">
       <div class="add-title">Adicionar site</div>
       <div class="add-main-row">
-        <input type="text" id="newSite" placeholder="ex: youtube.com">
+        <input type="text" id="newSite" class="site-input" placeholder="Ex: youtube.com, reddit.com">
         <div class="limit-pill" title="Limite diário">
           <input type="number" id="newLimit" value="30" min="1" max="1440" step="1">
           <select id="newUnit">
@@ -558,12 +750,32 @@
   </div>
 
   <!-- HISTORY TAB -->
-  <div class="tab-panel" id="tab-history">
+  <div class="tab-panel" id="tab-history" role="tabpanel">
+    <div class="streak-card" id="streakCard" style="display:none">
+      <div class="streak-card-icon">&#128293;</div>
+      <div class="streak-card-info">
+        <div class="streak-card-current"><span id="streakCardCurrent">0</span> dias</div>
+        <div class="streak-card-best">Recorde: <span id="streakCardBest">0</span> dias</div>
+      </div>
+    </div>
+
+    <div class="chart-section" id="chartSection">
+      <div class="chart-title">Últimos 7 dias</div>
+      <svg id="barChart" class="bar-chart" viewBox="0 0 380 200"></svg>
+      <div class="chart-title" style="margin-top: 16px;">Tendência (30 dias)</div>
+      <svg id="lineChart" class="line-chart" viewBox="0 0 380 160"></svg>
+      <div class="chart-legend" id="chartLegend"></div>
+      <div class="trend-indicator" id="trendIndicator" style="display:none">
+        <span id="trendArrow"></span>
+        <span id="trendText"></span>
+      </div>
+    </div>
+
     <!-- Weekly Overview Sparklines -->
     <div class="sparklines-section" id="sparklinesSection" style="display:none">
       <div class="sparklines-header">
         <span class="sparklines-title">Tendência semanal</span>
-        <span class="sparklines-period" id="sparklinesPeriod">Últimos 7 dias</span>
+        <span class="sparklines-period">Últimos 7 dias</span>
       </div>
       <div class="sparklines-grid" id="sparklinesGrid"></div>
     </div>
@@ -573,9 +785,11 @@
   </div>
 
   <!-- SETTINGS TAB -->
-  <div class="tab-panel" id="tab-settings">
+  <div class="tab-panel" id="tab-settings" role="tabpanel">
     <div class="settings-panel">
 
+      <div class="config-category">
+      <div class="config-category-header">Desafios</div>
       <!-- Challenge -->
       <div class="setting-group">
         <div class="setting-header">
@@ -614,7 +828,10 @@
           Força você a ser intencional antes de começar a navegar.
         </div>
       </div>
+      </div>
 
+      <div class="config-category">
+      <div class="config-category-header">Tempo Extra</div>
       <!-- Extra Time Config -->
       <div class="setting-group">
         <div class="setting-header">
@@ -629,7 +846,52 @@
           <button class="btn-save-setting" id="btnSaveExtraTime">Salvar</button>
         </div>
       </div>
+      </div>
 
+      <div class="config-category">
+      <div class="config-category-header">Pomodoro</div>
+      <div class="config-row">
+        <label>Preset</label>
+        <select id="pomodoroPreset" class="config-select">
+          <option value="classic">Clássico (25/5)</option>
+          <option value="long">Longo (50/10)</option>
+          <option value="short">Curto (15/5)</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <label>Foco (min)</label>
+        <select id="pomodoroFocusMin" class="config-select">
+          <option value="15">15</option>
+          <option value="25" selected>25</option>
+          <option value="30">30</option>
+          <option value="45">45</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <label>Pausa (min)</label>
+        <select id="pomodoroBreakMin" class="config-select">
+          <option value="5" selected>5</option>
+          <option value="10">10</option>
+          <option value="15">15</option>
+        </select>
+      </div>
+      </div>
+
+      <div class="config-category">
+      <div class="config-category-header">Respiração</div>
+      <div class="config-row">
+        <label>Padrão</label>
+        <select id="breathingPreset" class="config-select">
+          <option value="relaxamento">Relaxamento (4-4-4)</option>
+          <option value="box">Box Breathing (4-4-4-4)</option>
+          <option value="sono">Sono (4-7-8)</option>
+        </select>
+      </div>
+      </div>
+
+      <div class="config-category">
+      <div class="config-category-header">Horários</div>
       <!-- Schedule -->
       <div class="setting-group">
         <div class="setting-header">
@@ -675,7 +937,10 @@
           </div>
         </div>
       </div>
+      </div>
 
+      <div class="config-category">
+      <div class="config-category-header">YouTube</div>
       <!-- YouTube Filters -->
       <div class="setting-group">
         <div class="setting-header">
@@ -700,7 +965,19 @@
           </label>
         </div>
       </div>
+      </div>
 
+      <div class="config-category">
+      <div class="config-category-header">Dados</div>
+      <div class="config-row" style="flex-direction: column; gap: 8px;">
+        <button class="btn-config" id="btnExport">Exportar Configurações</button>
+        <button class="btn-config" id="btnImport">Importar Configurações</button>
+        <input type="file" id="importFileInput" accept=".json" style="display:none">
+      </div>
+      </div>
+
+      <div class="config-category">
+      <div class="config-category-header danger">Zona de Perigo</div>
       <!-- Nuclear Option -->
       <div class="setting-group" style="border-color: #dc2626;">
         <div class="setting-header">
@@ -717,7 +994,21 @@
         </div>
         <button class="btn-nuclear" id="btnNuclear">ATIVAR NUCLEAR OPTION</button>
       </div>
+      </div>
 
+    </div>
+  </div>
+  </div>
+
+  <div class="import-overlay" id="importOverlay" style="display:none">
+    <div class="import-modal">
+      <h3>Importar Configurações</h3>
+      <div class="import-preview" id="importPreview"></div>
+      <div class="import-actions">
+        <button class="btn-config" id="btnImportReplace">Substituir tudo</button>
+        <button class="btn-config" id="btnImportMerge">Mesclar</button>
+        <button class="btn-config" id="btnImportCancel">Cancelar</button>
+      </div>
     </div>
   </div>
 

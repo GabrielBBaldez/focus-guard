@@ -99,13 +99,24 @@ function formatDateBR(dateStr) {
 
 document.querySelectorAll('.tab-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
-    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-
-    if (btn.dataset.tab === 'history') loadHistory();
-    if (btn.dataset.tab === 'settings') loadSettings();
+    var activePanel = document.querySelector('.tab-panel.active');
+    if (activePanel) {
+      activePanel.style.opacity = '0';
+      activePanel.style.transform = 'translateX(-20px)';
+      setTimeout(function() {
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function(p) {
+          p.classList.remove('active');
+          p.style.opacity = '';
+          p.style.transform = '';
+        });
+        btn.classList.add('active');
+        var newPanel = document.getElementById('tab-' + btn.dataset.tab);
+        newPanel.classList.add('active');
+        if (btn.dataset.tab === 'history') loadHistory();
+        if (btn.dataset.tab === 'settings') loadSettings();
+      }, 150);
+    }
   });
 });
 
@@ -211,6 +222,11 @@ async function loadData() {
     var weeklyTxt = weeklyLimit ? '<div class="weekly-info">Semanal: ' + formatLimit(weeklyLimit) + '</div>' : '';
     var safe = escapeHtml(pattern);
 
+    var statusIcon = '';
+    if (isBlocked || isNuclear) statusIcon = '<span class="site-status-icon" title="Bloqueado">&#128274;</span>';
+    else if (hasSchedule) statusIcon = '<span class="site-status-icon" title="Agendado">&#128197;</span>';
+    else statusIcon = '<span class="site-status-icon" title="Rastreando">&#9202;</span>';
+
     var card = document.createElement('div');
     card.className = 'site-card';
     card.dataset.pattern = pattern;
@@ -220,13 +236,14 @@ async function loadData() {
       '</div>' +
       '<div class="site-body">' +
         '<div class="site-row">' +
+          statusIcon +
           '<span class="site-host" title="' + safe + '">' + safe + '</span>' +
           '<span class="site-badge-slot">' + badge + '</span>' +
         '</div>' +
         '<div class="site-meta">' + formatTime(used) + ' / ' + formatLimit(limitMin) + extraTxt + '</div>' +
         weeklyTxt +
         '<div class="site-progress">' +
-          '<div class="site-progress-fill ' + getBarClass(pct) + '" style="width:' + (pct * 100) + '%"></div>' +
+          '<div class="site-progress-fill ' + getBarClass(pct) + '" style="width:' + (pct * 100) + '%" role="progressbar" aria-valuenow="' + Math.round(pct * 100) + '" aria-valuemax="100"></div>' +
         '</div>' +
       '</div>' +
       '<button class="site-del" data-site="' + safe + '" title="Remover">&times;</button>';
@@ -234,6 +251,16 @@ async function loadData() {
   }
 
   totalTimeEl.textContent = formatTime(totalSec);
+
+  // Global progress bar
+  var totalLimit = 0;
+  Object.keys(sites).forEach(function(p) {
+    totalLimit += sites[p] * 60;
+  });
+  var globalPct = totalLimit > 0 ? Math.min((totalSec / totalLimit) * 100, 100) : 0;
+  var globalFill = document.getElementById('globalProgressFill');
+  globalFill.style.width = globalPct + '%';
+  globalFill.style.background = globalPct > 80 ? '#ef4444' : (globalPct > 50 ? '#eab308' : '#22c55e');
 
   // Favicon fallback
   document.querySelectorAll('.fav-img').forEach(function(img) {
@@ -359,6 +386,16 @@ btnAdd.addEventListener('click', async function() {
   newWeeklyLimitInput.value = '';
 });
 
+// Domain validation
+newSiteInput.addEventListener('input', function() {
+  var val = this.value.trim().toLowerCase();
+  val = val.replace(/^https?:\/\//, '').replace(/^www\./, '');
+  this.classList.remove('valid', 'invalid');
+  if (!val) return;
+  var isValid = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(\/.+)?$/.test(val);
+  this.classList.add(isValid ? 'valid' : 'invalid');
+});
+
 // Enter key
 newSiteInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') btnAdd.click(); });
 newLimitInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') btnAdd.click(); });
@@ -387,6 +424,154 @@ btnReset.addEventListener('click', function() {
   });
 });
 
+// ── Chart Helpers ──
+
+var SITE_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+
+function simpleHash(str) {
+  var hash = 0;
+  for (var i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function getSiteColor(siteName) {
+  return SITE_COLORS[simpleHash(siteName) % SITE_COLORS.length];
+}
+
+function renderBarChart(history) {
+  var svg = document.getElementById('barChart');
+  var today = new Date();
+  var days = [];
+  var allSites = new Set();
+
+  for (var i = 6; i >= 0; i--) {
+    var d = new Date(today);
+    d.setDate(d.getDate() - i);
+    var dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    var dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    days.push({ date: dateStr, label: dayNames[d.getDay()], usage: history[dateStr] || {} });
+    Object.keys(history[dateStr] || {}).forEach(function(s) { allSites.add(s); });
+  }
+
+  var sites = Array.from(allSites);
+  var maxTotal = 0;
+  days.forEach(function(day) {
+    var total = 0;
+    sites.forEach(function(s) { total += (day.usage[s] || 0); });
+    if (total > maxTotal) maxTotal = total;
+  });
+
+  if (maxTotal === 0) { svg.innerHTML = '<text x="190" y="100" text-anchor="middle" fill="#71717a" font-size="12">Sem dados ainda</text>'; return; }
+
+  var barWidth = 36;
+  var gap = (380 - 7 * barWidth) / 8;
+  var chartHeight = 170;
+  var html = '';
+
+  days.forEach(function(day, i) {
+    var x = gap + i * (barWidth + gap);
+    var yOffset = 0;
+    sites.forEach(function(site) {
+      var sec = day.usage[site] || 0;
+      var h = (sec / maxTotal) * chartHeight;
+      if (h > 0) {
+        var y = chartHeight - yOffset - h;
+        html += '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + h + '" fill="' + getSiteColor(site) + '" rx="2">';
+        html += '<title>' + site + ': ' + Math.round(sec / 60) + 'min</title></rect>';
+        yOffset += h;
+      }
+    });
+    var totalSec = 0;
+    sites.forEach(function(s) { totalSec += (day.usage[s] || 0); });
+    var dayColor = '#71717a';
+    if (totalSec > 0 && maxTotal > 0) {
+      var ratio = totalSec / maxTotal;
+      dayColor = ratio > 0.8 ? '#ef4444' : (ratio > 0.5 ? '#eab308' : '#22c55e');
+    }
+    html += '<text x="' + (x + barWidth / 2) + '" y="190" text-anchor="middle" fill="' + dayColor + '" font-size="10">' + day.label + '</text>';
+  });
+
+  svg.innerHTML = html;
+
+  var legend = document.getElementById('chartLegend');
+  legend.innerHTML = sites.map(function(s) {
+    return '<div class="chart-legend-item"><div class="chart-legend-color" style="background:' + getSiteColor(s) + '"></div>' + s + '</div>';
+  }).join('');
+}
+
+function renderLineChart(history) {
+  var svg = document.getElementById('lineChart');
+  var today = new Date();
+  var points = [];
+
+  for (var i = 29; i >= 0; i--) {
+    var d = new Date(today);
+    d.setDate(d.getDate() - i);
+    var dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    var dayUsage = history[dateStr] || {};
+    var total = Object.values(dayUsage).reduce(function(a, b) { return a + b; }, 0);
+    points.push({ date: dateStr, total: total, day: d.getDate() });
+  }
+
+  var maxVal = Math.max.apply(null, points.map(function(p) { return p.total; }));
+  if (maxVal === 0) { svg.innerHTML = '<text x="190" y="80" text-anchor="middle" fill="#71717a" font-size="12">Sem dados</text>'; return; }
+
+  var chartW = 370;
+  var chartH = 130;
+  var padL = 5;
+  var padT = 10;
+
+  var pathPoints = points.map(function(p, i) {
+    var x = padL + (i / 29) * chartW;
+    var y = padT + chartH - (p.total / maxVal) * chartH;
+    return { x: x, y: y, total: p.total, date: p.date, day: p.day };
+  });
+
+  var linePath = pathPoints.map(function(p, i) { return (i === 0 ? 'M' : 'L') + p.x + ',' + p.y; }).join(' ');
+  var areaPath = linePath + ' L' + pathPoints[pathPoints.length - 1].x + ',' + (padT + chartH) + ' L' + padL + ',' + (padT + chartH) + ' Z';
+
+  var avg = points.reduce(function(a, p) { return a + p.total; }, 0) / 30;
+  var avgY = padT + chartH - (avg / maxVal) * chartH;
+
+  var html = '';
+  html += '<defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6366f1" stop-opacity="0.3"/><stop offset="100%" stop-color="#6366f1" stop-opacity="0"/></linearGradient></defs>';
+  html += '<path d="' + areaPath + '" fill="url(#areaGrad)"/>';
+  html += '<path d="' + linePath + '" fill="none" stroke="#6366f1" stroke-width="2"/>';
+  html += '<line x1="' + padL + '" y1="' + avgY + '" x2="' + (padL + chartW) + '" y2="' + avgY + '" stroke="#71717a" stroke-width="1" stroke-dasharray="4,4"/>';
+  html += '<text x="' + (padL + chartW) + '" y="' + (avgY - 4) + '" text-anchor="end" fill="#71717a" font-size="9">média: ' + Math.round(avg / 60) + 'min</text>';
+
+  pathPoints.forEach(function(p) {
+    if (p.total > 0) {
+      html += '<circle cx="' + p.x + '" cy="' + p.y + '" r="3" fill="#6366f1" opacity="0"><title>' + p.date + ': ' + Math.round(p.total / 60) + 'min</title></circle>';
+      html += '<circle cx="' + p.x + '" cy="' + p.y + '" r="8" fill="transparent"><title>' + p.date + ': ' + Math.round(p.total / 60) + 'min</title></circle>';
+    }
+  });
+
+  for (var j = 0; j < 30; j += 5) {
+    html += '<text x="' + pathPoints[j].x + '" y="' + (padT + chartH + 14) + '" text-anchor="middle" fill="#71717a" font-size="9">' + pathPoints[j].day + '</text>';
+  }
+
+  svg.innerHTML = html;
+}
+
+function calculateTrend(history) {
+  var today = new Date();
+  var thisWeek = 0, lastWeek = 0;
+  for (var i = 0; i < 7; i++) {
+    var d1 = new Date(today); d1.setDate(d1.getDate() - i);
+    var d2 = new Date(today); d2.setDate(d2.getDate() - i - 7);
+    var ds1 = d1.getFullYear() + '-' + String(d1.getMonth() + 1).padStart(2, '0') + '-' + String(d1.getDate()).padStart(2, '0');
+    var ds2 = d2.getFullYear() + '-' + String(d2.getMonth() + 1).padStart(2, '0') + '-' + String(d2.getDate()).padStart(2, '0');
+    thisWeek += Object.values(history[ds1] || {}).reduce(function(a, b) { return a + b; }, 0);
+    lastWeek += Object.values(history[ds2] || {}).reduce(function(a, b) { return a + b; }, 0);
+  }
+  if (lastWeek === 0) return null;
+  return Math.round(((thisWeek - lastWeek) / lastWeek) * 100);
+}
+
 // ── History Tab ──
 
 function loadHistory() {
@@ -407,6 +592,34 @@ function loadHistory() {
 
     // Build sparklines from last 7 days
     buildSparklines(history, dates);
+
+    // Render charts
+    renderBarChart(history);
+    renderLineChart(history);
+
+    // Trend indicator
+    var trend = calculateTrend(history);
+    var indicator = document.getElementById('trendIndicator');
+    if (trend !== null) {
+      indicator.style.display = '';
+      var arrow = trend <= 0 ? '\u2193' : '\u2191';
+      indicator.className = 'trend-indicator ' + (trend <= 0 ? 'down' : 'up');
+      document.getElementById('trendArrow').textContent = arrow;
+      document.getElementById('trendText').textContent = Math.abs(trend) + '% vs semana passada';
+    } else {
+      indicator.style.display = 'none';
+    }
+
+    // Streak card
+    chrome.runtime.sendMessage({ type: 'getStreak' }, function(streak) {
+      if (chrome.runtime.lastError || !streak) return;
+      var card = document.getElementById('streakCard');
+      if (streak.current > 0 || streak.best > 0) {
+        card.style.display = '';
+        document.getElementById('streakCardCurrent').textContent = streak.current;
+        document.getElementById('streakCardBest').textContent = streak.best;
+      }
+    });
 
     var html = '';
 
@@ -574,6 +787,17 @@ async function loadSettings() {
   hideShortsToggle.checked = !!shortsData[STORAGE_KEYS.HIDE_SHORTS];
   hideCommentsToggle.checked = !!shortsData[STORAGE_KEYS.HIDE_COMMENTS];
 
+  // Pomodoro Config
+  var pomData = await chrome.storage.local.get('focusGuard_pomodoroConfig');
+  var pomConfig = pomData.focusGuard_pomodoroConfig || { focus: DEFAULTS.POMODORO_FOCUS, break: DEFAULTS.POMODORO_BREAK };
+  document.getElementById('pomodoroFocusMin').value = pomConfig.focus / 60;
+  document.getElementById('pomodoroBreakMin').value = pomConfig.break / 60;
+
+  // Breathing Config
+  var breathData = await chrome.storage.local.get('focusGuard_breathingConfig');
+  var breathConfig = breathData.focusGuard_breathingConfig || DEFAULTS.BREATHING_PATTERN;
+  document.getElementById('breathingPreset').value = breathConfig.name || 'relaxamento';
+
   // Nuclear
   updateNuclearBanner();
 }
@@ -585,7 +809,8 @@ btnSaveChallenge.addEventListener('click', function() {
     enabled: challengeToggle.checked,
     difficulty: challengeDifficulty.value
   }, function(response) {
-    if (response && response.ok) {
+    if (chrome.runtime.lastError || !response) return;
+    if (response.ok) {
       btnSaveChallenge.textContent = 'Salvo!';
       setTimeout(function() { btnSaveChallenge.textContent = 'Salvar'; }, 1500);
     }
@@ -597,7 +822,7 @@ entryChallengeToggle.addEventListener('change', function() {
   chrome.runtime.sendMessage({
     type: 'saveEntryChallenge',
     enabled: entryChallengeToggle.checked
-  });
+  }, function() { void chrome.runtime.lastError; });
 });
 
 // Extra Time save
@@ -606,11 +831,47 @@ btnSaveExtraTime.addEventListener('click', function() {
     type: 'saveExtraTimeConfig',
     minutes: parseInt(extraTimeMinutesInput.value) || 5
   }, function(response) {
-    if (response && response.ok) {
+    if (chrome.runtime.lastError || !response) return;
+    if (response.ok) {
       btnSaveExtraTime.textContent = 'Salvo!';
       setTimeout(function() { btnSaveExtraTime.textContent = 'Salvar'; }, 1500);
     }
   });
+});
+
+// Pomodoro Config
+document.getElementById('pomodoroPreset').addEventListener('change', function() {
+  var presets = { classic: [25, 5], long: [50, 10], short: [15, 5] };
+  var p = presets[this.value];
+  document.getElementById('pomodoroFocusMin').value = p[0];
+  document.getElementById('pomodoroBreakMin').value = p[1];
+  savePomodoroConfig();
+});
+document.getElementById('pomodoroFocusMin').addEventListener('change', savePomodoroConfig);
+document.getElementById('pomodoroBreakMin').addEventListener('change', savePomodoroConfig);
+
+function savePomodoroConfig() {
+  var focus = parseInt(document.getElementById('pomodoroFocusMin').value) * 60;
+  var breakTime = parseInt(document.getElementById('pomodoroBreakMin').value) * 60;
+  chrome.storage.local.set({ focusGuard_pomodoroConfig: { focus: focus, break: breakTime } });
+}
+
+// Breathing Config
+var BREATHING_PRESETS = {
+  relaxamento: { name: 'relaxamento', phases: [
+    { label: 'Inspire', seconds: 4 }, { label: 'Segure', seconds: 4 }, { label: 'Expire', seconds: 4 }
+  ]},
+  box: { name: 'box', phases: [
+    { label: 'Inspire', seconds: 4 }, { label: 'Segure', seconds: 4 }, { label: 'Expire', seconds: 4 }, { label: 'Segure', seconds: 4 }
+  ]},
+  sono: { name: 'sono', phases: [
+    { label: 'Inspire', seconds: 4 }, { label: 'Segure', seconds: 7 }, { label: 'Expire', seconds: 8 }
+  ]}
+};
+
+document.getElementById('breathingPreset').addEventListener('change', function() {
+  var preset = BREATHING_PRESETS[this.value];
+  chrome.storage.local.set({ focusGuard_breathingConfig: preset });
 });
 
 // Schedule
@@ -694,7 +955,8 @@ btnSaveSchedule.addEventListener('click', function() {
     site: site,
     schedule: schedule
   }, function(response) {
-    if (response && response.ok) {
+    if (chrome.runtime.lastError || !response) return;
+    if (response.ok) {
       btnSaveSchedule.textContent = 'Salvo!';
       setTimeout(function() { btnSaveSchedule.textContent = 'Salvar horário'; }, 1500);
       loadData();
@@ -711,7 +973,8 @@ btnClearSchedule.addEventListener('click', function() {
     site: site,
     schedule: null
   }, function(response) {
-    if (response && response.ok) {
+    if (chrome.runtime.lastError || !response) return;
+    if (response.ok) {
       scheduleEditor.style.display = 'none';
       scheduleSiteSelect.value = '';
       loadData();
@@ -745,10 +1008,11 @@ btnNuclear.addEventListener('click', function() {
     hours: hours,
     sites: 'all'
   }, function(response) {
-    if (response && response.ok) {
+    if (chrome.runtime.lastError || !response) return;
+    if (response.ok) {
       updateNuclearBanner();
       loadData();
-    } else if (response && response.error) {
+    } else if (response.error) {
       alert(response.error);
     }
   });
@@ -816,6 +1080,9 @@ async function refreshUsage() {
       var newClass = 'site-progress-fill ' + getBarClass(pct);
       if (fill.style.width !== newWidth) fill.style.width = newWidth;
       if (fill.className !== newClass) fill.className = newClass;
+      fill.setAttribute('aria-valuenow', Math.round(pct * 100));
+      fill.setAttribute('aria-valuemax', '100');
+      fill.setAttribute('role', 'progressbar');
     }
 
     // Update badge
@@ -841,6 +1108,23 @@ async function refreshUsage() {
 loadData();
 startNuclearTimer();
 
+// Streak badge
+chrome.runtime.sendMessage({ type: 'getStreak' }, function(streak) {
+  if (chrome.runtime.lastError || !streak) return;
+  var badge = document.getElementById('streakBadge');
+  var count = document.getElementById('streakCount');
+  if (streak.current > 0) {
+    badge.style.display = '';
+    count.textContent = streak.current;
+    badge.dataset.tooltip = streak.current + ' dias consecutivos! Recorde: ' + streak.best + ' dias';
+    badge.classList.remove('hot', 'fire');
+    if (streak.current >= 8) badge.classList.add('fire');
+    else if (streak.current >= 4) badge.classList.add('hot');
+  } else {
+    badge.style.display = 'none';
+  }
+});
+
 // Lightweight usage refresh every 1.5s (only updates text + bar widths, no DOM rebuild)
 setInterval(refreshUsage, 1500);
 
@@ -862,4 +1146,105 @@ chrome.storage.onChanged.addListener(function(changes, area) {
       queueLoadData();
     }
   }
+});
+
+// ── Export/Import ──
+
+var EXPORT_KEYS = [
+  'focusGuard_sites', 'focusGuard_weeklyLimits', 'focusGuard_schedule',
+  'focusGuard_challenge', 'focusGuard_entryChallenge', 'focusGuard_extraTimeMin',
+  'focusGuard_pomodoroConfig', 'focusGuard_breathingConfig',
+  'focusGuard_hideShorts', 'focusGuard_hideComments'
+];
+
+function validateImportData(data) {
+  var validKeys = Object.keys(data).filter(function(k) { return EXPORT_KEYS.indexOf(k) !== -1; });
+  var cleaned = {};
+  validKeys.forEach(function(k) { cleaned[k] = data[k]; });
+  if (cleaned.focusGuard_sites && typeof cleaned.focusGuard_sites !== 'object') return null;
+  if (cleaned.focusGuard_extraTimeMin !== undefined && (typeof cleaned.focusGuard_extraTimeMin !== 'number' || cleaned.focusGuard_extraTimeMin < 1 || cleaned.focusGuard_extraTimeMin > 30)) return null;
+  return cleaned;
+}
+
+document.getElementById('btnExport').addEventListener('click', async function() {
+  var data = await chrome.storage.local.get(EXPORT_KEYS);
+  var exportObj = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: {}
+  };
+  EXPORT_KEYS.forEach(function(k) { if (data[k] !== undefined) exportObj.data[k] = data[k]; });
+  var blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'focus-guard-backup-' + new Date().toISOString().split('T')[0] + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+var pendingImportData = null;
+
+document.getElementById('btnImport').addEventListener('click', function() {
+  document.getElementById('importFileInput').click();
+});
+
+document.getElementById('importFileInput').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      var parsed = JSON.parse(ev.target.result);
+      if (!parsed.version || !parsed.data) throw new Error('Schema inválido');
+      var validated = validateImportData(parsed.data);
+      if (!validated || Object.keys(validated).length === 0) throw new Error('Dados inválidos ou nenhuma chave reconhecida');
+      pendingImportData = validated;
+      var siteCount = parsed.data.focusGuard_sites ? Object.keys(parsed.data.focusGuard_sites).length : 0;
+      document.getElementById('importPreview').innerHTML =
+        '<p><strong>Arquivo:</strong> ' + file.name + '</p>' +
+        '<p><strong>Data:</strong> ' + (parsed.exportedAt || 'N/A') + '</p>' +
+        '<p><strong>Sites:</strong> ' + siteCount + '</p>' +
+        '<p><strong>Configs:</strong> ' + Object.keys(parsed.data).length + ' chaves</p>';
+      document.getElementById('importOverlay').style.display = 'flex';
+    } catch (err) {
+      alert('Arquivo inválido: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  this.value = '';
+});
+
+document.getElementById('btnImportCancel').addEventListener('click', function() {
+  document.getElementById('importOverlay').style.display = 'none';
+  pendingImportData = null;
+});
+
+document.getElementById('btnImportReplace').addEventListener('click', async function() {
+  if (!pendingImportData) return;
+  if (!confirm('Sites e configurações atuais serão removidos. Apenas os dados do backup serão mantidos. Continuar?')) return;
+  await chrome.storage.local.remove(EXPORT_KEYS);
+  await chrome.storage.local.set(pendingImportData);
+  document.getElementById('importOverlay').style.display = 'none';
+  pendingImportData = null;
+  loadSettings();
+  loadData();
+});
+
+document.getElementById('btnImportMerge').addEventListener('click', async function() {
+  if (!pendingImportData) return;
+  var existing = await chrome.storage.local.get(Object.keys(pendingImportData));
+  var merged = {};
+  Object.keys(pendingImportData).forEach(function(key) {
+    if (typeof pendingImportData[key] === 'object' && !Array.isArray(pendingImportData[key]) && existing[key]) {
+      merged[key] = Object.assign({}, existing[key], pendingImportData[key]);
+    } else {
+      merged[key] = pendingImportData[key];
+    }
+  });
+  await chrome.storage.local.set(merged);
+  document.getElementById('importOverlay').style.display = 'none';
+  pendingImportData = null;
+  loadSettings();
+  loadData();
 });

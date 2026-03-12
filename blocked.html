@@ -6,7 +6,15 @@
   <meta name="darkreader-lock">
   <title>Focus Guard - Bloqueado</title>
   <style>
-    :root { color-scheme: dark !important; }
+    :root {
+      color-scheme: dark !important;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-full: 9999px;
+      --transition-fast: 150ms ease;
+      --transition-normal: 300ms ease;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
@@ -34,6 +42,15 @@
     @keyframes gridMove {
       0% { transform: translate(0,0); }
       100% { transform: translate(60px,60px); }
+    }
+
+    #mainContainer {
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 0.6s ease forwards;
+    }
+    @keyframes fadeInUp {
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .container {
@@ -204,6 +221,32 @@
       background: rgba(99,102,241,0.25) !important;
       border-color: #6366f1 !important;
     }
+
+    .challenge-progress {
+      width: 100%;
+      height: 4px;
+      background: #27272a;
+      border-radius: 2px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .challenge-progress-fill {
+      height: 100%;
+      background: #6366f1;
+      border-radius: 2px;
+      transition: width 0.15s ease;
+      width: 0%;
+    }
+    .challenge-progress-fill.complete {
+      background: #22c55e;
+    }
+
+    @keyframes successFlash {
+      0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+      50% { box-shadow: 0 0 20px 10px rgba(34, 197, 94, 0.2); }
+      100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+    }
+    .challenge-success { animation: successFlash 0.8s ease; }
 
     /* ── Breathing Exercise ── */
     .breath-section {
@@ -504,9 +547,67 @@
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Toast notifications */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      background: #27272a;
+      color: #e4e4e7;
+      padding: 12px 20px;
+      border-radius: 8px;
+      border-left: 4px solid #6366f1;
+      font-size: 0.9rem;
+      opacity: 0;
+      transform: translateX(100%);
+      transition: all 0.3s ease;
+      max-width: 340px;
+    }
+    .toast.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    .toast.error {
+      border-left-color: #ef4444;
+    }
+    .toast.success {
+      border-left-color: #22c55e;
+    }
+
+    .streak-message {
+      color: #eab308;
+      font-size: 0.85rem;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    :focus-visible {
+      outline: 2px solid #6366f1;
+      outline-offset: 2px;
+    }
   </style>
 </head>
 <body>
+  <div class="toast-container" id="toastContainer"></div>
   <div class="bg-grid"></div>
 
   <div class="container" id="mainContainer">
@@ -544,19 +645,23 @@
     </p>
 
     <div class="quote" id="quote"></div>
+    <div class="streak-message" id="streakMessage" style="display:none"></div>
 
     <!-- Challenge Section -->
     <div class="challenge-section" id="challengeSection">
       <div class="challenge-label">Complete o desafio para desbloquear</div>
       <div class="challenge-text" id="challengeText"></div>
       <textarea class="challenge-input" id="challengeInput" placeholder="Digite o texto acima exatamente como está..." spellcheck="false"></textarea>
+      <div class="challenge-progress" id="challengeProgress">
+        <div class="challenge-progress-fill" id="challengeProgressFill"></div>
+      </div>
       <div class="challenge-hint" id="challengeHint">Copiar e colar está desabilitado. Digite manualmente.</div>
       <button class="btn-challenge-verify" id="btnChallengeVerify">Verificar desafio</button>
     </div>
 
     <!-- Breathing Exercise -->
     <div class="breath-section">
-      <button class="breath-toggle" id="breathToggle">Exercício de respiração</button>
+      <button class="breath-toggle" id="breathToggle" aria-label="Alternar exercício de respiração">Exercício de respiração</button>
       <div class="breath-box" id="breathBox">
         <div class="breath-orb" id="breathOrb">
           <div class="breath-ring breath-ring-1"></div>
@@ -586,9 +691,9 @@
           </div>
         </div>
         <div class="pomodoro-controls">
-          <button class="pomodoro-btn primary" id="pomodoroStart">Iniciar</button>
-          <button class="pomodoro-btn" id="pomodoroPause" style="display:none">Pausar</button>
-          <button class="pomodoro-btn" id="pomodoroReset">Resetar</button>
+          <button class="pomodoro-btn primary" id="pomodoroStart" aria-label="Iniciar timer Pomodoro">Iniciar</button>
+          <button class="pomodoro-btn" id="pomodoroPause" style="display:none" aria-label="Pausar timer Pomodoro">Pausar</button>
+          <button class="pomodoro-btn" id="pomodoroReset" aria-label="Resetar timer Pomodoro">Resetar</button>
         </div>
         <div class="pomodoro-cycles" id="pomodoroCycles">Ciclos completos: 0</div>
       </div>
