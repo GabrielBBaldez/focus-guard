@@ -180,23 +180,12 @@
 
     .tabs-container {
       position: relative;
-      overflow: visible;
     }
     .tab-panel {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      visibility: hidden;
-      opacity: 0;
-      transform: translateX(20px);
-      transition: opacity 0.3s ease, transform 0.3s ease;
-      pointer-events: none;
+      display: none;
     }
     .tab-panel.active {
-      position: relative;
-      visibility: visible;
-      opacity: 1;
-      transform: translateX(0);
-      pointer-events: auto;
+      display: block;
     }
 
     /* ── Nuclear Banner ── */
