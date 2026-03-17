@@ -55,12 +55,18 @@ Focus Guard e uma extensao para Chrome que monitora quanto tempo voce gasta em s
 - **Metas semanais** — Objetivos motivacionais (nao bloqueiam)
 - **Historico de 365 dias** — Contribution graph estilo GitHub
 
+### Filtro de YouTube
+- **Ocultar Shorts** — Remove a secao de Shorts da home, sidebar e resultados de busca do YouTube
+- **Redirecionar Shorts** — Se voce acessar um link `/shorts/`, redireciona automaticamente para o player normal (`/watch?v=`)
+- **Ocultar comentarios** — Esconde a secao de comentarios em videos e Shorts
+- **Deteccao em 3 camadas** — Seletores primarios, fallback por atributos, e heuristicos por aria-label
+- **Toggle individual** — Ative/desative Shorts e comentarios separadamente no Settings
+
 ### Polish
 - **Tema claro/escuro/sistema** — Com CSS custom properties
 - **Notificacoes inteligentes** — Alertas em 50%, 75%, 90% do limite
 - **Onboarding guiado** — Wizard de 3 passos no primeiro uso
 - **Animacoes suaves** — Com respeito a `prefers-reduced-motion`
-- **Filtro de YouTube** — Oculta Shorts e comentarios opcionalmente
 
 ## Instalacao
 
@@ -69,15 +75,37 @@ Focus Guard e uma extensao para Chrome que monitora quanto tempo voce gasta em s
 2. Clique em **"Usar no Chrome"**
 3. Pronto!
 
-### Modo desenvolvedor
+### Instalacao manual (sem Chrome Web Store)
+
+Se voce prefere nao usar a Chrome Web Store, pode instalar diretamente:
+
+#### Opcao A: Download do ZIP (mais facil)
+1. Acesse o [repositorio no GitHub](https://github.com/GabrielBBaldez/focus-guard)
+2. Clique no botao verde **"Code"** → **"Download ZIP"**
+3. Extraia o ZIP em uma pasta no seu computador (ex: `C:\focus-guard` ou `~/focus-guard`)
+4. Abra o Chrome e digite `chrome://extensions` na barra de endereco
+5. Ative o **Modo do desenvolvedor** (toggle no canto superior direito)
+6. Clique em **"Carregar sem compactacao"** (ou "Load unpacked" em ingles)
+7. Selecione a pasta onde voce extraiu os arquivos
+8. Pronto! O icone do Focus Guard aparece na barra do Chrome
+
+#### Opcao B: Git clone (para devs)
 ```bash
 git clone https://github.com/GabrielBBaldez/focus-guard.git
-cd focus-guard
 ```
 1. Abra `chrome://extensions` no Chrome
 2. Ative **Modo do desenvolvedor** (toggle no canto superior direito)
 3. Clique em **"Carregar sem compactacao"**
 4. Selecione a pasta `focus-guard`
+
+#### Funciona em outros navegadores Chromium
+A instalacao manual funciona da mesma forma em:
+- **Microsoft Edge** → `edge://extensions`
+- **Brave** → `brave://extensions`
+- **Opera** → `opera://extensions`
+- **Vivaldi** → `vivaldi://extensions`
+
+> **Nota:** Ao instalar manualmente, o Chrome pode mostrar um aviso sobre "extensoes em modo desenvolvedor" ao iniciar. Isso e normal e nao afeta o funcionamento.
 
 ## Como usar
 
