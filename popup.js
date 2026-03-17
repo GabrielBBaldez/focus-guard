@@ -30,7 +30,8 @@ const STORAGE_KEYS = {
   THEME: 'focusGuard_theme',
   NOTIFICATIONS: 'focusGuard_notifications',
   PAUSED: 'focusGuard_paused',
-  PAUSE_COUNT: 'focusGuard_pauseCount'
+  PAUSE_COUNT: 'focusGuard_pauseCount',
+  GOALS: 'focusGuard_goals'
 };
 
 // ── DOM Elements ──
@@ -496,6 +497,9 @@ async function loadData() {
 
   // Update schedule site selector
   updateScheduleSiteOptions(sites);
+
+  // Update goal card
+  renderGoalCard();
 }
 
 // ── Toggle ──
@@ -845,8 +849,103 @@ function loadHistory() {
     }
 
     historyPanel.innerHTML = html;
+
+    // Render contribution graph
+    renderContributionGraph(26);
   });
 }
+
+// ── Contribution Graph ──
+
+function renderContributionGraph(weeks) {
+  weeks = weeks || 26;
+  var graph = document.getElementById('contributionGraph');
+  var tooltip = document.getElementById('contribTooltip');
+  if (!graph) return;
+  graph.innerHTML = '';
+
+  chrome.storage.local.get([STORAGE_KEYS.HISTORY, STORAGE_KEYS.USAGE, STORAGE_KEYS.USAGE_DATE, STORAGE_KEYS.SITES], function(data) {
+    var history = data[STORAGE_KEYS.HISTORY] || {};
+    var todayUsage = data[STORAGE_KEYS.USAGE] || {};
+    var todayDate = data[STORAGE_KEYS.USAGE_DATE] || '';
+    var sites = data[STORAGE_KEYS.SITES] || {};
+
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var totalDays = weeks * 7;
+
+    for (var i = totalDays - 1; i >= 0; i--) {
+      var d = new Date(today);
+      d.setDate(d.getDate() - i);
+      var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+      var totalSeconds = 0;
+      var overLimit = false;
+      var dayData = null;
+
+      if (key === todayDate) {
+        dayData = todayUsage;
+      } else if (history[key]) {
+        dayData = history[key];
+      }
+
+      if (dayData) {
+        if (dayData._total) {
+          totalSeconds = dayData._total;
+        } else {
+          var entries = Object.entries(dayData);
+          for (var e = 0; e < entries.length; e++) {
+            var site = entries[e][0];
+            var secs = entries[e][1];
+            totalSeconds += secs;
+            if (sites[site] && secs > sites[site] * 60) {
+              overLimit = true;
+            }
+          }
+        }
+      }
+
+      var totalMin = totalSeconds / 60;
+      var level = '';
+      if (overLimit) {
+        level = 'level-over';
+      } else if (totalMin > 120) {
+        level = 'level-3';
+      } else if (totalMin > 60) {
+        level = 'level-2';
+      } else if (totalMin > 0) {
+        level = 'level-1';
+      }
+
+      var cell = document.createElement('div');
+      cell.className = 'contrib-cell' + (level ? ' ' + level : '');
+      cell.dataset.date = key;
+      cell.dataset.minutes = Math.round(totalMin);
+
+      cell.addEventListener('mouseenter', function(ev) {
+        var rect = ev.target.getBoundingClientRect();
+        tooltip.textContent = ev.target.dataset.date + ': ' + ev.target.dataset.minutes + ' min';
+        tooltip.style.display = 'block';
+        tooltip.style.left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+        tooltip.style.top = (rect.top - tooltip.offsetHeight - 4) + 'px';
+      });
+      cell.addEventListener('mouseleave', function() {
+        tooltip.style.display = 'none';
+      });
+
+      graph.appendChild(cell);
+    }
+  });
+}
+
+// Toggle buttons for contribution graph
+document.querySelectorAll('.graph-toggle-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.graph-toggle-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    renderContributionGraph(parseInt(btn.dataset.range));
+  });
+});
 
 // ── Sparklines ──
 
@@ -998,6 +1097,14 @@ async function loadSettings() {
   var breathData = await chrome.storage.local.get('focusGuard_breathingConfig');
   var breathConfig = breathData.focusGuard_breathingConfig || DEFAULTS.BREATHING_PATTERN;
   document.getElementById('breathingPreset').value = breathConfig.name || 'relaxamento';
+
+  // Goals
+  var goalsData = await chrome.storage.local.get(STORAGE_KEYS.GOALS);
+  var goals = goalsData[STORAGE_KEYS.GOALS];
+  var goalGeneralInput = document.getElementById('goalGeneral');
+  if (goalGeneralInput) {
+    goalGeneralInput.value = (goals && goals.general) ? goals.general : '';
+  }
 
   // Nuclear
   updateNuclearBanner();
@@ -1217,6 +1324,16 @@ notify50.addEventListener('change', saveNotificationConfig);
 notify75.addEventListener('change', saveNotificationConfig);
 notify90.addEventListener('change', saveNotificationConfig);
 
+// Weekly Goal setting
+document.getElementById('goalGeneral').addEventListener('change', function() {
+  var val = parseInt(this.value);
+  var goals = (val && val > 0) ? { general: val } : null;
+  chrome.storage.local.set({ [STORAGE_KEYS.GOALS]: goals }, function() {
+    void chrome.runtime.lastError;
+    renderGoalCard();
+  });
+});
+
 // Nuclear Option
 btnNuclear.addEventListener('click', function() {
   var hours = parseFloat(nuclearHoursInput.value) || 2;
@@ -1434,6 +1551,91 @@ async function refreshUsage() {
   if (totalTimeEl.textContent !== formatTime(totalSec)) {
     totalTimeEl.textContent = formatTime(totalSec);
   }
+
+  // Update goal card
+  renderGoalCard();
+}
+
+// ── Weekly Goals ──
+
+async function renderGoalCard() {
+  var goalCard = document.getElementById('goalCard');
+  var goalFill = document.getElementById('goalFill');
+  var goalText = document.getElementById('goalText');
+  var goalBadge = document.getElementById('goalBadge');
+  if (!goalCard) return;
+
+  // Get goals from storage
+  var goalsData = await chrome.storage.local.get(STORAGE_KEYS.GOALS);
+  var goals = goalsData[STORAGE_KEYS.GOALS];
+  if (!goals || !goals.general) {
+    goalCard.style.display = 'none';
+    return;
+  }
+
+  var goalHours = goals.general;
+  var goalSeconds = goalHours * 3600;
+
+  // Calculate weekly total: today's usage + last 6 days from history
+  var usageData = await chrome.storage.local.get([STORAGE_KEYS.USAGE, STORAGE_KEYS.HISTORY]);
+  var usage = usageData[STORAGE_KEYS.USAGE] || {};
+  var history = usageData[STORAGE_KEYS.HISTORY] || {};
+
+  // Sum today's total usage across all sites
+  var todayTotal = 0;
+  for (var p in usage) {
+    if (usage.hasOwnProperty(p)) todayTotal += usage[p];
+  }
+
+  // Sum last 6 days from history
+  var historyTotal = 0;
+  var today = new Date();
+  for (var i = 1; i <= 6; i++) {
+    var d = new Date(today);
+    d.setDate(d.getDate() - i);
+    var dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (history[dateStr]) {
+      for (var site in history[dateStr]) {
+        if (history[dateStr].hasOwnProperty(site)) {
+          if (site === '_total') {
+            historyTotal += history[dateStr][site];
+          } else {
+            historyTotal += history[dateStr][site];
+          }
+        }
+      }
+    }
+  }
+
+  var weeklyTotal = todayTotal + historyTotal;
+  var pct = goalSeconds > 0 ? Math.min(weeklyTotal / goalSeconds, 1) : 0;
+  var pctDisplay = Math.round((weeklyTotal / goalSeconds) * 100);
+
+  // Set fill width and color
+  goalFill.style.width = (pct * 100) + '%';
+  goalFill.className = 'goal-fill';
+  if (pct < 0.7) {
+    goalFill.classList.add('goal-green');
+  } else if (pct < 0.9) {
+    goalFill.classList.add('goal-yellow');
+  } else {
+    goalFill.classList.add('goal-red');
+  }
+
+  // Format text
+  var usedHours = (weeklyTotal / 3600).toFixed(1);
+  goalText.textContent = usedHours + 'h de ' + goalHours + 'h usadas esta semana';
+
+  // Badge
+  if (weeklyTotal <= goalSeconds) {
+    goalBadge.textContent = 'Meta cumprida!';
+    goalBadge.className = 'goal-badge achieved';
+  } else {
+    goalBadge.textContent = pctDisplay + '%';
+    goalBadge.className = 'goal-badge';
+  }
+
+  goalCard.style.display = '';
 }
 
 // ── Init ──
@@ -1475,7 +1677,7 @@ chrome.storage.onChanged.addListener(function(changes, area) {
     var structuralKeys = [STORAGE_KEYS.SITES, STORAGE_KEYS.ENABLED,
                 STORAGE_KEYS.BYPASSED, STORAGE_KEYS.NUCLEAR,
                 STORAGE_KEYS.SCHEDULE, STORAGE_KEYS.WEEKLY_LIMITS,
-                STORAGE_KEYS.EXTRA];
+                STORAGE_KEYS.EXTRA, STORAGE_KEYS.GOALS];
     if (structuralKeys.some(function(k) { return k in changes; })) {
       queueLoadData();
     }
@@ -1489,7 +1691,7 @@ var EXPORT_KEYS = [
   'focusGuard_challenge', 'focusGuard_entryChallenge', 'focusGuard_extraTimeMin',
   'focusGuard_pomodoroConfig', 'focusGuard_breathingConfig',
   'focusGuard_hideShorts', 'focusGuard_hideComments',
-  'focusGuard_notifications'
+  'focusGuard_notifications', 'focusGuard_goals'
 ];
 
 function validateImportData(data) {

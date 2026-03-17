@@ -430,6 +430,66 @@
     .total-value { font-size: 13px; font-weight: 700; color: var(--purple); }
 
     /* ── Site list ── */
+    /* ── Goal Card ── */
+    .goal-card {
+      padding: 12px 16px;
+      margin: 8px 16px 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border-secondary);
+      border-radius: var(--radius-lg);
+    }
+    .goal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .goal-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .goal-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+    .goal-badge.achieved {
+      background: rgba(34,197,94,0.15);
+      color: var(--success);
+      animation: goalAchieved 400ms ease;
+    }
+    @keyframes goalAchieved {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+      50% { transform: scale(1.08); box-shadow: 0 0 8px 2px rgba(34,197,94,0.25); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    }
+    .goal-progress-bar {
+      height: 6px;
+      background: var(--bg-hover);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .goal-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width 300ms ease, background 300ms ease;
+      width: 0%;
+    }
+    .goal-fill.goal-green { background: var(--success); }
+    .goal-fill.goal-yellow { background: var(--warning); }
+    .goal-fill.goal-red { background: var(--danger); }
+    .goal-text {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
     .site-list {
       padding: 12px 16px 8px;
       max-height: 260px;
@@ -1179,6 +1239,49 @@
     .onboarding-hint {
       font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;
     }
+
+    /* ── Contribution Graph ── */
+    .contribution-container { overflow-x: auto; padding: 8px 0; }
+    .contribution-graph {
+      display: grid;
+      grid-template-rows: repeat(7, 1fr);
+      grid-auto-flow: column;
+      gap: 2px;
+      width: fit-content;
+    }
+    .contrib-cell {
+      width: 8px; height: 8px; border-radius: 1px;
+      background: var(--bg-tertiary); cursor: pointer;
+    }
+    .contrib-cell:hover { outline: 1px solid var(--text-muted); }
+    .contrib-cell.level-1 { background: #166534; }
+    .contrib-cell.level-2 { background: #15803d; }
+    .contrib-cell.level-3 { background: #22c55e; }
+    .contrib-cell.level-over { background: var(--danger); }
+    .contribution-legend {
+      display: flex; align-items: center; gap: 3px; margin-top: 8px; justify-content: flex-end;
+    }
+    .legend-label { font-size: 10px; color: var(--text-muted); }
+    .legend-cell { width: 8px; height: 8px; border-radius: 1px; }
+    .graph-toggle { display: flex; gap: 4px; }
+    .graph-toggle-btn {
+      padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-secondary);
+      background: transparent; color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
+    }
+    .graph-toggle-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .history-section-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;
+    }
+    .section-title-sm {
+      font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .contribution-tooltip {
+      position: fixed; padding: 6px 10px;
+      background: var(--bg-card); border: 1px solid var(--border-secondary);
+      border-radius: var(--radius-sm); font-size: 11px; color: var(--text-primary);
+      pointer-events: none; z-index: 200; box-shadow: 0 2px 8px var(--shadow);
+      white-space: nowrap; display: none;
+    }
   </style>
 </head>
 <body>
@@ -1248,6 +1351,17 @@
       <button class="btn-focus-mode" id="focusModeBtn">&#9889; Modo Foco</button>
     </div>
 
+    <div class="goal-card" id="goalCard" style="display:none;">
+      <div class="goal-header">
+        <span class="goal-title">Meta Semanal</span>
+        <span class="goal-badge" id="goalBadge"></span>
+      </div>
+      <div class="goal-progress-bar">
+        <div class="goal-fill" id="goalFill"></div>
+      </div>
+      <span class="goal-text" id="goalText"></span>
+    </div>
+
     <div class="site-list" id="siteList"></div>
 
     <div class="add-section">
@@ -1279,6 +1393,28 @@
 
   <!-- HISTORY TAB -->
   <div class="tab-panel" id="tab-history" role="tabpanel">
+    <div class="history-section">
+      <div class="history-section-header">
+        <span class="section-title-sm">Atividade</span>
+        <div class="graph-toggle">
+          <button class="graph-toggle-btn active" data-range="26">26 sem</button>
+          <button class="graph-toggle-btn" data-range="52">Ano</button>
+        </div>
+      </div>
+      <div class="contribution-container" id="contributionContainer">
+        <div class="contribution-graph" id="contributionGraph"></div>
+        <div class="contribution-legend">
+          <span class="legend-label">Menos</span>
+          <span class="legend-cell" style="background: var(--bg-tertiary);"></span>
+          <span class="legend-cell" style="background: #166534;"></span>
+          <span class="legend-cell" style="background: #15803d;"></span>
+          <span class="legend-cell" style="background: #22c55e;"></span>
+          <span class="legend-cell" style="background: var(--danger);"></span>
+          <span class="legend-label">Mais</span>
+        </div>
+      </div>
+    </div>
+
     <div class="streak-card" id="streakCard" style="display:none">
       <div class="streak-card-icon">&#128293;</div>
       <div class="streak-card-info">
@@ -1541,6 +1677,21 @@
       </div>
 
       <div class="config-category">
+      <div class="config-category-header">Metas</div>
+      <div class="setting-group">
+        <label class="setting-label" style="font-weight:600; font-size:13px; margin-bottom:4px; display:block;">Metas Semanais</label>
+        <div class="goal-setting">
+          <label class="toggle-row" style="display:flex; align-items:center; gap:8px;">
+            <span>Meta geral semanal:</span>
+            <input type="number" id="goalGeneral" placeholder="horas" min="1" max="168" style="width:60px;" class="site-input">
+            <span class="limit-label" style="font-size:12px; color:var(--text-secondary);">h/semana</span>
+          </label>
+        </div>
+        <p class="setting-desc" style="margin-top:6px;">Objetivo motivacional de tempo maximo por semana. Nao bloqueia — apenas acompanha.</p>
+      </div>
+      </div>
+
+      <div class="config-category">
       <div class="config-category-header">Dados</div>
       <div class="config-row" style="flex-direction: column; gap: 8px;">
         <button class="btn-config" id="btnExport">Exportar Configurações</button>
@@ -1666,6 +1817,8 @@
       </div>
     </div>
   </div>
+
+  <div class="contribution-tooltip" id="contribTooltip"></div>
 
   <script src="defaults.js"></script>
   <script src="popup.js"></script>

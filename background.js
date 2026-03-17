@@ -21,7 +21,8 @@ const STORAGE_KEYS = {
   THEME: 'focusGuard_theme', // 'dark' | 'light' | 'system'
   NOTIFICATIONS: 'focusGuard_notifications', // { enabled: boolean, thresholds: { 50: bool, 75: bool, 90: bool } }
   PAUSED: 'focusGuard_paused',           // { until: timestamp } | null
-  PAUSE_COUNT: 'focusGuard_pauseCount'   // number (max 3/day)
+  PAUSE_COUNT: 'focusGuard_pauseCount',   // number (max 3/day)
+  GOALS: 'focusGuard_goals'              // { general: hours } | null
 };
 
 let activeTabId = null;
@@ -289,6 +290,25 @@ async function isEnabled() {
 
 // ── History ──
 
+function compressHistory(history) {
+  const now = new Date();
+  for (const dateKey of Object.keys(history)) {
+    const date = new Date(dateKey);
+    const ageDays = Math.floor((now - date) / 86400000);
+    if (ageDays > DEFAULTS.HISTORY_DAYS) {
+      delete history[dateKey];
+    } else if (ageDays > 90) {
+      const dayData = history[dateKey];
+      if (dayData && !dayData._total && typeof dayData === 'object') {
+        let total = 0;
+        for (const val of Object.values(dayData)) total += val;
+        history[dateKey] = { _total: total };
+      }
+    }
+  }
+  return history;
+}
+
 async function saveToHistory(dateStr, usage) {
   try {
     const data = await chrome.storage.local.get(STORAGE_KEYS.HISTORY);
@@ -300,11 +320,8 @@ async function saveToHistory(dateStr, usage) {
 
     history[dateStr] = usage;
 
-    // Keep only last 30 days
-    const dates = Object.keys(history).sort();
-    while (dates.length > 30) {
-      delete history[dates.shift()];
-    }
+    // Compress old entries and delete entries older than HISTORY_DAYS
+    compressHistory(history);
 
     await chrome.storage.local.set({ [STORAGE_KEYS.HISTORY]: history });
   } catch { /* storage error - non critical */ }
@@ -322,10 +339,8 @@ async function snapshotToday() {
     const history = histData[STORAGE_KEYS.HISTORY] || {};
     history[date] = usage;
 
-    const dates = Object.keys(history).sort();
-    while (dates.length > 30) {
-      delete history[dates.shift()];
-    }
+    // Compress old entries and delete entries older than HISTORY_DAYS
+    compressHistory(history);
 
     await chrome.storage.local.set({ [STORAGE_KEYS.HISTORY]: history });
   } catch { /* non critical */ }
@@ -1267,6 +1282,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   // Get weekly usage for a specific site
+  if (msg.type === 'getGoals') {
+    (async () => {
+      try {
+        const data = await chrome.storage.local.get(STORAGE_KEYS.GOALS);
+        sendResponse({ goals: data[STORAGE_KEYS.GOALS] || null });
+      } catch { sendResponse({ goals: null }); }
+    })();
+    return true;
+  }
+
+  if (msg.type === 'setGoals') {
+    (async () => {
+      try {
+        await chrome.storage.local.set({ [STORAGE_KEYS.GOALS]: msg.goals });
+        sendResponse({ ok: true });
+      } catch { sendResponse({ error: 'Internal error' }); }
+    })();
+    return true;
+  }
+
   if (msg.type === 'getWeeklyUsage') {
     (async () => {
       try {
