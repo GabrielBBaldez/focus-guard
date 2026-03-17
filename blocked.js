@@ -1,13 +1,106 @@
+// ── Theme Color Helper ──
+function themeColor(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+// ── Count-up Animation ──
+function animateCountUp(element, targetText, duration) {
+  duration = duration || 400;
+  // If user prefers reduced motion, set directly
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    element.textContent = targetText;
+    return;
+  }
+  // Extract numeric value from targetText (e.g., "45min" -> 45, "2h30min" -> parse as-is)
+  var match = targetText.match(/^(\d+)/);
+  if (!match) {
+    element.textContent = targetText;
+    return;
+  }
+  var targetValue = parseInt(match[1], 10);
+  var suffix = targetText.slice(match[1].length);
+  var startTime = null;
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function step(timestamp) {
+    if (!startTime) startTime = timestamp;
+    var elapsed = timestamp - startTime;
+    var progress = Math.min(elapsed / duration, 1);
+    var easedProgress = easeOutCubic(progress);
+    var currentValue = Math.round(easedProgress * targetValue);
+    element.textContent = currentValue + suffix;
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    } else {
+      element.textContent = targetText;
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
 // ── Init ──
 var params = new URLSearchParams(window.location.search);
 var rawSite = params.get('site') || 'este site';
 // Sanitize: remove anything after first space/newline, keep only domain+path chars
 var site = rawSite.replace(/[\s<>"'`]/g, '').split('#')[0].split('?')[0].toLowerCase();
 var isNuclear = params.get('nuclear') === '1';
+var isFocusMode = params.get('focus') === '1';
 var isEntryMode = params.get('entry') === '1';
 var isWeeklyBlock = params.get('reason') === 'weekly';
 var siteIsValid = false; // will be validated against storage
 var configuredExtraMin = 5; // will be loaded from storage
+
+// ── Theme System ──
+
+function applyTheme(theme) {
+  var resolved = theme;
+  if (theme === 'system') {
+    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  var html = document.documentElement;
+  html.classList.remove('theme-dark', 'theme-light');
+  html.classList.add('theme-' + resolved);
+
+  // Update color-scheme meta
+  var metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+  if (metaColorScheme) {
+    metaColorScheme.setAttribute('content', resolved);
+  }
+
+  // Handle darkreader-lock meta
+  var metaDarkReader = document.querySelector('meta[name="darkreader-lock"]');
+  if (resolved === 'dark') {
+    if (!metaDarkReader) {
+      metaDarkReader = document.createElement('meta');
+      metaDarkReader.setAttribute('name', 'darkreader-lock');
+      document.head.appendChild(metaDarkReader);
+    }
+  } else {
+    if (metaDarkReader) {
+      metaDarkReader.remove();
+    }
+  }
+}
+
+// Load theme from storage
+chrome.storage.local.get('focusGuard_theme', function(data) {
+  var theme = data['focusGuard_theme'] || DEFAULTS.THEME;
+  applyTheme(theme);
+});
+
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+  chrome.storage.local.get('focusGuard_theme', function(data) {
+    var theme = data['focusGuard_theme'] || DEFAULTS.THEME;
+    if (theme === 'system') {
+      applyTheme('system');
+    }
+  });
+});
 
 // ── Toast Notifications ──
 function showToast(message, type) {
@@ -45,6 +138,34 @@ if (isNuclear) {
   document.getElementById('bypassSection').classList.add('hidden');
 }
 
+// ── Focus Mode ──
+if (isFocusMode) {
+  document.getElementById('mainContainer').classList.add('nuclear-mode');
+  document.getElementById('bypassSection').classList.add('hidden');
+  document.querySelector('h1').textContent = 'Modo Foco ativo';
+  document.querySelector('.message').innerHTML =
+    'Este site está bloqueado durante o <strong>Modo Foco</strong>.<br>' +
+    '<strong>Concentre-se no que importa.</strong>';
+  // Apply accent/indigo tones instead of danger/red
+  var nuclearAlert = document.querySelector('.nuclear-alert');
+  if (nuclearAlert) {
+    nuclearAlert.style.background = 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.25))';
+    nuclearAlert.style.borderColor = 'var(--accent-alpha-30)';
+  }
+  var alertIcon = document.querySelector('.nuclear-alert-icon');
+  if (alertIcon) alertIcon.textContent = '\u26A1';
+  var alertText = document.querySelector('.nuclear-alert-text');
+  if (alertText) {
+    alertText.textContent = 'MODO FOCO ATIVO';
+    alertText.style.color = 'var(--accent-light)';
+  }
+  var alertTime = document.querySelector('.nuclear-alert-time');
+  if (alertTime) alertTime.style.color = 'var(--accent-light)';
+  // Change logo glow to indigo instead of red
+  var logo = document.querySelector('.logo');
+  if (logo) logo.style.filter = 'drop-shadow(0 0 20px rgba(99,102,241,0.6))';
+}
+
 // Check nuclear status from background
 chrome.runtime.sendMessage({ type: 'getNuclearStatus' }, function(response) {
   if (chrome.runtime.lastError || !response) return;
@@ -53,9 +174,31 @@ chrome.runtime.sendMessage({ type: 'getNuclearStatus' }, function(response) {
     var until = new Date(response.until);
     var h = until.getHours().toString().padStart(2, '0');
     var m = until.getMinutes().toString().padStart(2, '0');
-    document.getElementById('nuclearAlertTime').textContent = 'Sites bloqueados até ' + h + ':' + m;
 
-    // Hide bypass buttons during nuclear
+    if (response.mode === 'focus') {
+      document.querySelector('h1').textContent = 'Modo Foco ativo';
+      document.getElementById('nuclearAlertTime').textContent = 'Sites bloqueados até ' + h + ':' + m;
+      var alertText = document.querySelector('.nuclear-alert-text');
+      if (alertText) {
+        alertText.textContent = 'MODO FOCO ATIVO';
+        alertText.style.color = 'var(--accent-light)';
+      }
+      var alertTime = document.querySelector('.nuclear-alert-time');
+      if (alertTime) alertTime.style.color = 'var(--accent-light)';
+      var nuclearAlert = document.querySelector('.nuclear-alert');
+      if (nuclearAlert) {
+        nuclearAlert.style.background = 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.25))';
+        nuclearAlert.style.borderColor = 'var(--accent-alpha-30)';
+      }
+      var alertIcon = document.querySelector('.nuclear-alert-icon');
+      if (alertIcon) alertIcon.textContent = '\u26A1';
+      var logo = document.querySelector('.logo');
+      if (logo) logo.style.filter = 'drop-shadow(0 0 20px rgba(99,102,241,0.6))';
+    } else {
+      document.getElementById('nuclearAlertTime').textContent = 'Sites bloqueados até ' + h + ':' + m;
+    }
+
+    // Hide bypass buttons during nuclear/focus
     document.getElementById('bypassSection').classList.add('hidden');
     document.getElementById('challengeSection').classList.remove('visible');
   }
@@ -140,18 +283,18 @@ chrome.runtime.sendMessage({ type: 'getUsage' }, function(response) {
   var extraSec = extra[site] || 0;
   var totalLimitSec = (limitMin * 60) + extraSec;
 
-  document.getElementById('statUsed').textContent = formatMin(usedSec);
-  document.getElementById('statLimit').textContent = formatMin(totalLimitSec);
+  animateCountUp(document.getElementById('statUsed'), formatMin(usedSec));
+  animateCountUp(document.getElementById('statLimit'), formatMin(totalLimitSec));
 
   // If weekly block, show weekly stats instead
   if (isWeeklyBlock && weeklyLimits[site]) {
-    document.getElementById('statLimit').textContent = formatMin(weeklyLimits[site] * 60);
+    animateCountUp(document.getElementById('statLimit'), formatMin(weeklyLimits[site] * 60));
     document.querySelector('#statLimit + .stat-label').textContent = 'Limite semanal';
     document.querySelector('#statUsed + .stat-label').textContent = 'Usado hoje';
     // Fetch weekly usage to display
     chrome.runtime.sendMessage({ type: 'getWeeklyUsage', site: site }, function(weeklyResp) {
       if (weeklyResp && weeklyResp.seconds !== undefined) {
-        document.getElementById('statTotal').textContent = formatMin(weeklyResp.seconds);
+        animateCountUp(document.getElementById('statTotal'), formatMin(weeklyResp.seconds));
         document.querySelector('#statTotal + .stat-label').textContent = 'Usado semana';
       }
     });
@@ -161,7 +304,7 @@ chrome.runtime.sendMessage({ type: 'getUsage' }, function(response) {
     for (var i = 0; i < keys.length; i++) {
       totalToday += usage[keys[i]] || 0;
     }
-    document.getElementById('statTotal').textContent = formatMin(totalToday);
+    animateCountUp(document.getElementById('statTotal'), formatMin(totalToday));
   }
 });
 
@@ -346,6 +489,7 @@ function startBreathing() {
 
 function runPhaseSequence(index) {
   if (index >= breathingPhases.length) {
+    chrome.runtime.sendMessage({ type: 'breathingCompleted' });
     startBreathing();
     return;
   }
@@ -439,11 +583,11 @@ function updatePomodoroDisplay() {
   if (pomodoroState.mode === 'focus') {
     pomodoroLabelEl.textContent = 'FOCO';
     pomodoroLabelEl.className = 'pomodoro-label focus';
-    pomodoroRing.setAttribute('stroke', '#22c55e');
+    pomodoroRing.setAttribute('stroke', themeColor('--success'));
   } else {
     pomodoroLabelEl.textContent = 'PAUSA';
     pomodoroLabelEl.className = 'pomodoro-label break';
-    pomodoroRing.setAttribute('stroke', '#eab308');
+    pomodoroRing.setAttribute('stroke', themeColor('--warning'));
   }
 
   pomodoroCyclesEl.textContent = 'Ciclos completos: ' + pomodoroState.cycles;
@@ -478,6 +622,7 @@ function startPomodoro() {
 
       if (pomodoroState.mode === 'focus') {
         pomodoroState.cycles++;
+        chrome.runtime.sendMessage({ type: 'pomodoroCompleted' });
         pomodoroState.mode = 'break';
         pomodoroState.remaining = POMODORO_BREAK;
         pomodoroState.total = POMODORO_BREAK;

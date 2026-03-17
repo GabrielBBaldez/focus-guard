@@ -1,3 +1,16 @@
+// ── Theme Color Helper ──
+function themeColor(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+function themeColorAlpha(varName, alpha) {
+  var hex = themeColor(varName);
+  var r = parseInt(hex.slice(1, 3), 16);
+  var g = parseInt(hex.slice(3, 5), 16);
+  var b = parseInt(hex.slice(5, 7), 16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+
 const STORAGE_KEYS = {
   SITES: 'focusGuard_sites',
   USAGE: 'focusGuard_usage',
@@ -13,7 +26,12 @@ const STORAGE_KEYS = {
   HIDE_COMMENTS: 'focusGuard_hideComments',
   WEEKLY_LIMITS: 'focusGuard_weeklyLimits',
   EXTRA_TIME_MIN: 'focusGuard_extraTimeMin',
-  ENTRY_CHALLENGE: 'focusGuard_entryChallenge'
+  ENTRY_CHALLENGE: 'focusGuard_entryChallenge',
+  THEME: 'focusGuard_theme',
+  NOTIFICATIONS: 'focusGuard_notifications',
+  PAUSED: 'focusGuard_paused',
+  PAUSE_COUNT: 'focusGuard_pauseCount',
+  GOALS: 'focusGuard_goals'
 };
 
 // ── DOM Elements ──
@@ -31,6 +49,14 @@ const totalTimeEl = document.getElementById('totalTime');
 const nuclearBanner = document.getElementById('nuclearBanner');
 const nuclearTimeEl = document.getElementById('nuclearTime');
 
+// Pause
+const pauseWrapper = document.getElementById('pauseWrapper');
+const pauseBtn = document.getElementById('pauseBtn');
+const pauseDropdown = document.getElementById('pauseDropdown');
+const pauseBanner = document.getElementById('pauseBanner');
+const pauseCountdown = document.getElementById('pauseCountdown');
+const pauseRemaining = document.getElementById('pauseRemaining');
+
 // Settings
 const challengeToggle = document.getElementById('challengeToggle');
 const challengeDifficulty = document.getElementById('challengeDifficulty');
@@ -44,13 +70,77 @@ const btnSaveSchedule = document.getElementById('btnSaveSchedule');
 const btnClearSchedule = document.getElementById('btnClearSchedule');
 const hideShortsToggle = document.getElementById('hideShortsToggle');
 const hideCommentsToggle = document.getElementById('hideCommentsToggle');
+const notify50 = document.getElementById('notify50');
+const notify75 = document.getElementById('notify75');
+const notify90 = document.getElementById('notify90');
 const btnNuclear = document.getElementById('btnNuclear');
 const nuclearHoursInput = document.getElementById('nuclearHours');
+
+// Theme
+const themeSelect = document.getElementById('themeSelect');
 
 // History
 const historyPanel = document.getElementById('historyPanel');
 const sparklinesSection = document.getElementById('sparklinesSection');
 const sparklinesGrid = document.getElementById('sparklinesGrid');
+
+// ── Theme System ──
+
+function applyTheme(theme) {
+  var resolved = theme;
+  if (theme === 'system') {
+    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  var html = document.documentElement;
+  html.classList.remove('theme-dark', 'theme-light');
+  html.classList.add('theme-' + resolved);
+
+  // Update color-scheme meta
+  var metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+  if (metaColorScheme) {
+    metaColorScheme.setAttribute('content', resolved);
+  }
+
+  // Handle darkreader-lock meta
+  var metaDarkReader = document.querySelector('meta[name="darkreader-lock"]');
+  if (resolved === 'dark') {
+    if (!metaDarkReader) {
+      metaDarkReader = document.createElement('meta');
+      metaDarkReader.setAttribute('name', 'darkreader-lock');
+      document.head.appendChild(metaDarkReader);
+    }
+  } else {
+    if (metaDarkReader) {
+      metaDarkReader.remove();
+    }
+  }
+}
+
+// Load theme from storage
+chrome.storage.local.get(STORAGE_KEYS.THEME, function(data) {
+  var theme = data[STORAGE_KEYS.THEME] || DEFAULTS.THEME;
+  themeSelect.value = theme;
+  applyTheme(theme);
+});
+
+// Theme selector change
+themeSelect.addEventListener('change', function() {
+  var theme = themeSelect.value;
+  var obj = {};
+  obj[STORAGE_KEYS.THEME] = theme;
+  chrome.storage.local.set(obj);
+  applyTheme(theme);
+});
+
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+  chrome.storage.local.get(STORAGE_KEYS.THEME, function(data) {
+    var theme = data[STORAGE_KEYS.THEME] || DEFAULTS.THEME;
+    if (theme === 'system') {
+      applyTheme('system');
+    }
+  });
+});
 
 // ── Helpers ──
 
@@ -127,18 +217,36 @@ var nuclearTimer = null;
 function updateNuclearBanner() {
   chrome.runtime.sendMessage({ type: 'getNuclearStatus' }, function(response) {
     if (chrome.runtime.lastError || !response) return;
+    var focusBtn = document.getElementById('focusModeBtn');
     if (response.active) {
       nuclearBanner.classList.add('active');
       var remaining = response.until - Date.now();
       var h = Math.floor(remaining / 3600000);
       var m = Math.floor((remaining % 3600000) / 60000);
       nuclearTimeEl.textContent = h + 'h ' + m + 'min restantes';
-      btnNuclear.disabled = true;
-      btnNuclear.textContent = 'NUCLEAR ATIVA';
+
+      if (response.mode === 'focus') {
+        nuclearBanner.classList.add('focus-mode');
+        document.querySelector('#nuclearBanner .nb-icon').textContent = '\u26A1';
+        document.querySelector('#nuclearBanner .nb-text').textContent = 'MODO FOCO ATIVO';
+        btnNuclear.disabled = true;
+        btnNuclear.textContent = 'FOCO ATIVO';
+        if (focusBtn) { focusBtn.disabled = true; focusBtn.textContent = '\u26A1 Foco Ativo'; }
+      } else {
+        nuclearBanner.classList.remove('focus-mode');
+        document.querySelector('#nuclearBanner .nb-icon').textContent = '\u2622';
+        document.querySelector('#nuclearBanner .nb-text').textContent = 'NUCLEAR OPTION ATIVA';
+        btnNuclear.disabled = true;
+        btnNuclear.textContent = 'NUCLEAR ATIVA';
+        if (focusBtn) { focusBtn.disabled = true; }
+      }
     } else {
-      nuclearBanner.classList.remove('active');
+      nuclearBanner.classList.remove('active', 'focus-mode');
+      document.querySelector('#nuclearBanner .nb-icon').textContent = '\u2622';
+      document.querySelector('#nuclearBanner .nb-text').textContent = 'NUCLEAR OPTION ATIVA';
       btnNuclear.disabled = false;
       btnNuclear.textContent = 'ATIVAR NUCLEAR OPTION';
+      if (focusBtn) { focusBtn.disabled = false; focusBtn.textContent = '\u26A1 Modo Foco'; }
     }
   });
 }
@@ -147,6 +255,90 @@ function startNuclearTimer() {
   updateNuclearBanner();
   nuclearTimer = setInterval(updateNuclearBanner, 30000);
 }
+
+// ── Pause UI ──
+
+var pauseCountdownTimer = null;
+
+function updatePauseUI() {
+  chrome.runtime.sendMessage({ type: 'getPauseStatus' }, function(response) {
+    if (chrome.runtime.lastError || !response) return;
+
+    if (response.active) {
+      pauseBanner.classList.add('active');
+      pauseBtn.disabled = true;
+      pauseDropdown.style.display = 'none';
+
+      // Start countdown
+      if (pauseCountdownTimer) clearInterval(pauseCountdownTimer);
+      function tickCountdown() {
+        var remaining = response.until - Date.now();
+        if (remaining <= 0) {
+          pauseBanner.classList.remove('active');
+          pauseBtn.disabled = false;
+          pauseCountdown.textContent = '00:00';
+          if (pauseCountdownTimer) clearInterval(pauseCountdownTimer);
+          updatePauseUI();
+          return;
+        }
+        var m = Math.floor(remaining / 60000);
+        var s = Math.floor((remaining % 60000) / 1000);
+        pauseCountdown.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+      }
+      tickCountdown();
+      pauseCountdownTimer = setInterval(tickCountdown, 1000);
+
+      pauseRemaining.textContent = response.pausesRemaining + ' pausas restantes hoje';
+    } else {
+      pauseBanner.classList.remove('active');
+      if (pauseCountdownTimer) { clearInterval(pauseCountdownTimer); pauseCountdownTimer = null; }
+
+      if (response.pausesRemaining <= 0) {
+        pauseBtn.disabled = true;
+        pauseBtn.title = 'Limite de pausas atingido (3/dia)';
+      } else {
+        pauseBtn.disabled = false;
+        pauseBtn.title = 'Pausar tracking (' + response.pausesRemaining + ' restantes)';
+      }
+    }
+  });
+
+  // Hide pause wrapper during nuclear/focus mode
+  chrome.runtime.sendMessage({ type: 'getNuclearStatus' }, function(response) {
+    if (chrome.runtime.lastError || !response) return;
+    if (response.active) {
+      pauseWrapper.style.display = 'none';
+    } else {
+      pauseWrapper.style.display = '';
+    }
+  });
+}
+
+// Toggle dropdown
+pauseBtn.addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (pauseBtn.disabled) return;
+  pauseDropdown.style.display = pauseDropdown.style.display === 'none' ? '' : 'none';
+});
+
+// Close dropdown on outside click
+document.addEventListener('click', function() {
+  pauseDropdown.style.display = 'none';
+});
+
+// Pause option clicks
+pauseDropdown.addEventListener('click', function(e) {
+  var option = e.target.closest('.pause-option');
+  if (!option) return;
+  var minutes = parseInt(option.dataset.minutes);
+  pauseDropdown.style.display = 'none';
+  chrome.runtime.sendMessage({ type: 'pauseTracking', minutes: minutes }, function(response) {
+    if (chrome.runtime.lastError || !response) return;
+    if (response.success) {
+      updatePauseUI();
+    }
+  });
+});
 
 // ── Sites Tab ──
 
@@ -186,12 +378,14 @@ async function loadData() {
   // Check nuclear status
   var nuclearActive = false;
   var nuclearSites = null;
+  var nuclearMode = null;
   try {
     var nuclearData = await chrome.storage.local.get(STORAGE_KEYS.NUCLEAR);
     var nuclear = nuclearData[STORAGE_KEYS.NUCLEAR];
     if (nuclear && nuclear.until && Date.now() < nuclear.until) {
       nuclearActive = true;
       nuclearSites = nuclear.sites;
+      nuclearMode = nuclear.mode || 'nuclear';
     }
   } catch(e) {}
 
@@ -213,7 +407,8 @@ async function loadData() {
     totalSec += used;
 
     var badge = '';
-    if (isNuclear) badge = '<span class="site-badge badge-nuclear">Nuclear</span>';
+    if (isNuclear && nuclearMode === 'focus') badge = '<span class="site-badge badge-focus">Foco</span>';
+    else if (isNuclear) badge = '<span class="site-badge badge-nuclear">Nuclear</span>';
     else if (isBypassed) badge = '<span class="site-badge badge-bypassed">Liberado</span>';
     else if (isBlocked) badge = '<span class="site-badge badge-blocked">Bloqueado</span>';
     else if (hasSchedule) badge = '<span class="site-badge badge-scheduled">Horário</span>';
@@ -260,7 +455,7 @@ async function loadData() {
   var globalPct = totalLimit > 0 ? Math.min((totalSec / totalLimit) * 100, 100) : 0;
   var globalFill = document.getElementById('globalProgressFill');
   globalFill.style.width = globalPct + '%';
-  globalFill.style.background = globalPct > 80 ? '#ef4444' : (globalPct > 50 ? '#eab308' : '#22c55e');
+  globalFill.style.background = globalPct > 80 ? themeColor('--danger') : (globalPct > 50 ? themeColor('--warning') : themeColor('--success'));
 
   // Favicon fallback
   document.querySelectorAll('.fav-img').forEach(function(img) {
@@ -302,6 +497,9 @@ async function loadData() {
 
   // Update schedule site selector
   updateScheduleSiteOptions(sites);
+
+  // Update goal card
+  renderGoalCard();
 }
 
 // ── Toggle ──
@@ -371,6 +569,11 @@ btnAdd.addEventListener('click', async function() {
   var sites = data[STORAGE_KEYS.SITES] || {};
   sites[site] = limitMin;
   await chrome.storage.local.set({ [STORAGE_KEYS.SITES]: sites });
+
+  // Check sites_5 achievement
+  if (Object.keys(sites).length >= 5) {
+    chrome.runtime.sendMessage({ type: 'checkSitesAchievement' });
+  }
 
   // Save weekly limit if provided
   if (weeklyMin > 0) {
@@ -486,10 +689,10 @@ function renderBarChart(history) {
     });
     var totalSec = 0;
     sites.forEach(function(s) { totalSec += (day.usage[s] || 0); });
-    var dayColor = '#71717a';
+    var dayColor = themeColor('--text-secondary');
     if (totalSec > 0 && maxTotal > 0) {
       var ratio = totalSec / maxTotal;
-      dayColor = ratio > 0.8 ? '#ef4444' : (ratio > 0.5 ? '#eab308' : '#22c55e');
+      dayColor = ratio > 0.8 ? themeColor('--danger') : (ratio > 0.5 ? themeColor('--warning') : themeColor('--success'));
     }
     html += '<text x="' + (x + barWidth / 2) + '" y="190" text-anchor="middle" fill="' + dayColor + '" font-size="10">' + day.label + '</text>';
   });
@@ -574,7 +777,32 @@ function calculateTrend(history) {
 
 // ── History Tab ──
 
+function renderAchievements() {
+  chrome.runtime.sendMessage({ type: 'getAchievements' }, function(res) {
+    if (!res) return;
+    var grid = document.getElementById('achievementsGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    var entries = Object.entries(res.definitions);
+    for (var i = 0; i < entries.length; i++) {
+      var id = entries[i][0];
+      var def = entries[i][1];
+      var unlocked = res.achievements[id];
+      var item = document.createElement('div');
+      item.className = 'achievement-item' + (unlocked ? '' : ' locked');
+      item.title = unlocked
+        ? def.name + ': ' + def.desc + '\nDesbloqueado em ' + new Date(unlocked.unlockedAt).toLocaleDateString('pt-BR')
+        : def.desc;
+      item.innerHTML =
+        '<span class="achievement-icon">' + (unlocked ? def.icon : '?') + '</span>' +
+        '<span class="achievement-name">' + (unlocked ? def.name : '???') + '</span>';
+      grid.appendChild(item);
+    }
+  });
+}
+
 function loadHistory() {
+  renderAchievements();
   chrome.runtime.sendMessage({ type: 'getHistory' }, function(response) {
     if (chrome.runtime.lastError || !response) {
       historyPanel.innerHTML = '<div class="history-empty">Erro ao carregar histórico</div>';
@@ -651,8 +879,103 @@ function loadHistory() {
     }
 
     historyPanel.innerHTML = html;
+
+    // Render contribution graph
+    renderContributionGraph(26);
   });
 }
+
+// ── Contribution Graph ──
+
+function renderContributionGraph(weeks) {
+  weeks = weeks || 26;
+  var graph = document.getElementById('contributionGraph');
+  var tooltip = document.getElementById('contribTooltip');
+  if (!graph) return;
+  graph.innerHTML = '';
+
+  chrome.storage.local.get([STORAGE_KEYS.HISTORY, STORAGE_KEYS.USAGE, STORAGE_KEYS.USAGE_DATE, STORAGE_KEYS.SITES], function(data) {
+    var history = data[STORAGE_KEYS.HISTORY] || {};
+    var todayUsage = data[STORAGE_KEYS.USAGE] || {};
+    var todayDate = data[STORAGE_KEYS.USAGE_DATE] || '';
+    var sites = data[STORAGE_KEYS.SITES] || {};
+
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var totalDays = weeks * 7;
+
+    for (var i = totalDays - 1; i >= 0; i--) {
+      var d = new Date(today);
+      d.setDate(d.getDate() - i);
+      var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+      var totalSeconds = 0;
+      var overLimit = false;
+      var dayData = null;
+
+      if (key === todayDate) {
+        dayData = todayUsage;
+      } else if (history[key]) {
+        dayData = history[key];
+      }
+
+      if (dayData) {
+        if (dayData._total) {
+          totalSeconds = dayData._total;
+        } else {
+          var entries = Object.entries(dayData);
+          for (var e = 0; e < entries.length; e++) {
+            var site = entries[e][0];
+            var secs = entries[e][1];
+            totalSeconds += secs;
+            if (sites[site] && secs > sites[site] * 60) {
+              overLimit = true;
+            }
+          }
+        }
+      }
+
+      var totalMin = totalSeconds / 60;
+      var level = '';
+      if (overLimit) {
+        level = 'level-over';
+      } else if (totalMin > 120) {
+        level = 'level-3';
+      } else if (totalMin > 60) {
+        level = 'level-2';
+      } else if (totalMin > 0) {
+        level = 'level-1';
+      }
+
+      var cell = document.createElement('div');
+      cell.className = 'contrib-cell' + (level ? ' ' + level : '');
+      cell.dataset.date = key;
+      cell.dataset.minutes = Math.round(totalMin);
+
+      cell.addEventListener('mouseenter', function(ev) {
+        var rect = ev.target.getBoundingClientRect();
+        tooltip.textContent = ev.target.dataset.date + ': ' + ev.target.dataset.minutes + ' min';
+        tooltip.style.display = 'block';
+        tooltip.style.left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+        tooltip.style.top = (rect.top - tooltip.offsetHeight - 4) + 'px';
+      });
+      cell.addEventListener('mouseleave', function() {
+        tooltip.style.display = 'none';
+      });
+
+      graph.appendChild(cell);
+    }
+  });
+}
+
+// Toggle buttons for contribution graph
+document.querySelectorAll('.graph-toggle-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.graph-toggle-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    renderContributionGraph(parseInt(btn.dataset.range));
+  });
+});
 
 // ── Sparklines ──
 
@@ -746,8 +1069,8 @@ function buildSparklines(history, sortedDates) {
     areaPath += ' L' + (svgWidth - padding).toFixed(1) + ',' + svgHeight;
     areaPath += ' L' + padding + ',' + svgHeight + ' Z';
 
-    var lineColor = trendClass === 'trend-up' ? '#ef4444' : trendClass === 'trend-down' ? '#22c55e' : '#6366f1';
-    var fillColor = trendClass === 'trend-up' ? 'rgba(239,68,68,0.1)' : trendClass === 'trend-down' ? 'rgba(34,197,94,0.1)' : 'rgba(99,102,241,0.1)';
+    var lineColor = trendClass === 'trend-up' ? themeColor('--danger') : trendClass === 'trend-down' ? themeColor('--success') : themeColor('--accent');
+    var fillColor = trendClass === 'trend-up' ? themeColorAlpha('--danger', 0.1) : trendClass === 'trend-down' ? themeColorAlpha('--success', 0.1) : themeColorAlpha('--accent', 0.1);
 
     var avgMin = Math.round(siteTotals[siteName] / 7 / 60);
     var avgText = avgMin >= 60 ? Math.floor(avgMin / 60) + 'h' + (avgMin % 60 > 0 ? avgMin % 60 : '') : avgMin + 'm';
@@ -787,6 +1110,13 @@ async function loadSettings() {
   hideShortsToggle.checked = !!shortsData[STORAGE_KEYS.HIDE_SHORTS];
   hideCommentsToggle.checked = !!shortsData[STORAGE_KEYS.HIDE_COMMENTS];
 
+  // Notification thresholds
+  var notifData = await chrome.storage.local.get(STORAGE_KEYS.NOTIFICATIONS);
+  var notifConfig = notifData[STORAGE_KEYS.NOTIFICATIONS] || DEFAULTS.NOTIFICATIONS;
+  notify50.checked = !!notifConfig.thresholds[50];
+  notify75.checked = !!notifConfig.thresholds[75];
+  notify90.checked = !!notifConfig.thresholds[90];
+
   // Pomodoro Config
   var pomData = await chrome.storage.local.get('focusGuard_pomodoroConfig');
   var pomConfig = pomData.focusGuard_pomodoroConfig || { focus: DEFAULTS.POMODORO_FOCUS, break: DEFAULTS.POMODORO_BREAK };
@@ -797,6 +1127,14 @@ async function loadSettings() {
   var breathData = await chrome.storage.local.get('focusGuard_breathingConfig');
   var breathConfig = breathData.focusGuard_breathingConfig || DEFAULTS.BREATHING_PATTERN;
   document.getElementById('breathingPreset').value = breathConfig.name || 'relaxamento';
+
+  // Goals
+  var goalsData = await chrome.storage.local.get(STORAGE_KEYS.GOALS);
+  var goals = goalsData[STORAGE_KEYS.GOALS];
+  var goalGeneralInput = document.getElementById('goalGeneral');
+  if (goalGeneralInput) {
+    goalGeneralInput.value = (goals && goals.general) ? goals.general : '';
+  }
 
   // Nuclear
   updateNuclearBanner();
@@ -996,6 +1334,36 @@ hideCommentsToggle.addEventListener('change', async function() {
   });
 });
 
+// Notification threshold toggles
+function saveNotificationConfig() {
+  var config = {
+    enabled: true,
+    thresholds: {
+      50: notify50.checked,
+      75: notify75.checked,
+      90: notify90.checked
+    }
+  };
+  chrome.runtime.sendMessage({
+    type: 'setNotificationConfig',
+    config: config
+  }, function() { void chrome.runtime.lastError; });
+}
+
+notify50.addEventListener('change', saveNotificationConfig);
+notify75.addEventListener('change', saveNotificationConfig);
+notify90.addEventListener('change', saveNotificationConfig);
+
+// Weekly Goal setting
+document.getElementById('goalGeneral').addEventListener('change', function() {
+  var val = parseInt(this.value);
+  var goals = (val && val > 0) ? { general: val } : null;
+  chrome.storage.local.set({ [STORAGE_KEYS.GOALS]: goals }, function() {
+    void chrome.runtime.lastError;
+    renderGoalCard();
+  });
+});
+
 // Nuclear Option
 btnNuclear.addEventListener('click', function() {
   var hours = parseFloat(nuclearHoursInput.value) || 2;
@@ -1018,6 +1386,116 @@ btnNuclear.addEventListener('click', function() {
   });
 });
 
+// ── Focus Mode ──
+
+(function() {
+  var focusModeBtn = document.getElementById('focusModeBtn');
+  var focusOverlay = document.getElementById('focusModalOverlay');
+  var focusSitesList = document.getElementById('focusSitesList');
+  var focusDurationBtns = document.getElementById('focusDurationBtns');
+  var focusCustomMin = document.getElementById('focusCustomMin');
+  var focusBtnCancel = document.getElementById('focusBtnCancel');
+  var focusBtnStart = document.getElementById('focusBtnStart');
+  var selectedFocusMin = 30;
+
+  if (focusModeBtn) {
+    focusModeBtn.addEventListener('click', function() {
+      // Populate sites list from storage
+      chrome.storage.local.get(STORAGE_KEYS.SITES, function(data) {
+        var sites = data[STORAGE_KEYS.SITES] || {};
+        var patterns = Object.keys(sites);
+        focusSitesList.innerHTML = '';
+        patterns.forEach(function(pattern) {
+          var item = document.createElement('label');
+          item.className = 'focus-site-item';
+          item.innerHTML = '<input type="checkbox" checked value="' + pattern + '"> ' + pattern;
+          focusSitesList.appendChild(item);
+        });
+        // Reset duration selection
+        selectedFocusMin = 30;
+        focusCustomMin.value = '';
+        var btns = focusDurationBtns.querySelectorAll('.focus-dur-btn');
+        btns.forEach(function(b) {
+          b.classList.toggle('active', b.dataset.min === '30');
+        });
+        focusOverlay.classList.add('active');
+      });
+    });
+  }
+
+  // Duration button selection
+  if (focusDurationBtns) {
+    focusDurationBtns.addEventListener('click', function(e) {
+      var btn = e.target.closest('.focus-dur-btn');
+      if (!btn) return;
+      var btns = focusDurationBtns.querySelectorAll('.focus-dur-btn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      selectedFocusMin = parseInt(btn.dataset.min, 10);
+      focusCustomMin.value = '';
+    });
+  }
+
+  // Custom duration input
+  if (focusCustomMin) {
+    focusCustomMin.addEventListener('input', function() {
+      var val = parseInt(this.value, 10);
+      if (val >= 5 && val <= 480) {
+        selectedFocusMin = val;
+        var btns = focusDurationBtns.querySelectorAll('.focus-dur-btn');
+        btns.forEach(function(b) { b.classList.remove('active'); });
+      }
+    });
+  }
+
+  // Cancel
+  if (focusBtnCancel) {
+    focusBtnCancel.addEventListener('click', function() {
+      focusOverlay.classList.remove('active');
+    });
+  }
+
+  // Close on overlay click
+  if (focusOverlay) {
+    focusOverlay.addEventListener('click', function(e) {
+      if (e.target === focusOverlay) focusOverlay.classList.remove('active');
+    });
+  }
+
+  // Start focus mode
+  if (focusBtnStart) {
+    focusBtnStart.addEventListener('click', function() {
+      var checkboxes = focusSitesList.querySelectorAll('input[type="checkbox"]:checked');
+      var selectedSites = [];
+      checkboxes.forEach(function(cb) { selectedSites.push(cb.value); });
+
+      if (selectedSites.length === 0) {
+        alert('Selecione pelo menos um site.');
+        return;
+      }
+
+      // Use custom input if filled and valid
+      var customVal = parseInt(focusCustomMin.value, 10);
+      var minutes = (customVal >= 5 && customVal <= 480) ? customVal : selectedFocusMin;
+
+      chrome.runtime.sendMessage({
+        type: 'activateFocusMode',
+        minutes: minutes,
+        sites: selectedSites
+      }, function(response) {
+        if (chrome.runtime.lastError || !response) return;
+        if (response.ok) {
+          focusOverlay.classList.remove('active');
+          updateNuclearBanner();
+          loadData();
+        } else if (response.error) {
+          alert(response.error);
+        }
+      });
+    });
+  }
+})();
+
 // ── Lightweight Usage Refresh (no DOM rebuild) ──
 
 async function refreshUsage() {
@@ -1038,6 +1516,7 @@ async function refreshUsage() {
   var nuclear = data[STORAGE_KEYS.NUCLEAR];
   var nuclearActive = nuclear && nuclear.until && Date.now() < nuclear.until;
   var nuclearSites = nuclearActive ? nuclear.sites : null;
+  var refreshNuclearMode = nuclearActive ? (nuclear.mode || 'nuclear') : null;
 
   var totalSec = 0;
 
@@ -1089,7 +1568,8 @@ async function refreshUsage() {
     var badgeSlot = card.querySelector('.site-badge-slot');
     if (badgeSlot) {
       var newBadge = '';
-      if (isNuclear) newBadge = '<span class="site-badge badge-nuclear">Nuclear</span>';
+      if (isNuclear && refreshNuclearMode === 'focus') newBadge = '<span class="site-badge badge-focus">Foco</span>';
+      else if (isNuclear) newBadge = '<span class="site-badge badge-nuclear">Nuclear</span>';
       else if (isBypassed) newBadge = '<span class="site-badge badge-bypassed">Liberado</span>';
       else if (isBlocked) newBadge = '<span class="site-badge badge-blocked">Bloqueado</span>';
       if (badgeSlot.innerHTML !== newBadge && !badgeSlot.querySelector('.badge-scheduled')) {
@@ -1101,12 +1581,98 @@ async function refreshUsage() {
   if (totalTimeEl.textContent !== formatTime(totalSec)) {
     totalTimeEl.textContent = formatTime(totalSec);
   }
+
+  // Update goal card
+  renderGoalCard();
+}
+
+// ── Weekly Goals ──
+
+async function renderGoalCard() {
+  var goalCard = document.getElementById('goalCard');
+  var goalFill = document.getElementById('goalFill');
+  var goalText = document.getElementById('goalText');
+  var goalBadge = document.getElementById('goalBadge');
+  if (!goalCard) return;
+
+  // Get goals from storage
+  var goalsData = await chrome.storage.local.get(STORAGE_KEYS.GOALS);
+  var goals = goalsData[STORAGE_KEYS.GOALS];
+  if (!goals || !goals.general) {
+    goalCard.style.display = 'none';
+    return;
+  }
+
+  var goalHours = goals.general;
+  var goalSeconds = goalHours * 3600;
+
+  // Calculate weekly total: today's usage + last 6 days from history
+  var usageData = await chrome.storage.local.get([STORAGE_KEYS.USAGE, STORAGE_KEYS.HISTORY]);
+  var usage = usageData[STORAGE_KEYS.USAGE] || {};
+  var history = usageData[STORAGE_KEYS.HISTORY] || {};
+
+  // Sum today's total usage across all sites
+  var todayTotal = 0;
+  for (var p in usage) {
+    if (usage.hasOwnProperty(p)) todayTotal += usage[p];
+  }
+
+  // Sum last 6 days from history
+  var historyTotal = 0;
+  var today = new Date();
+  for (var i = 1; i <= 6; i++) {
+    var d = new Date(today);
+    d.setDate(d.getDate() - i);
+    var dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (history[dateStr]) {
+      for (var site in history[dateStr]) {
+        if (history[dateStr].hasOwnProperty(site)) {
+          if (site === '_total') {
+            historyTotal += history[dateStr][site];
+          } else {
+            historyTotal += history[dateStr][site];
+          }
+        }
+      }
+    }
+  }
+
+  var weeklyTotal = todayTotal + historyTotal;
+  var pct = goalSeconds > 0 ? Math.min(weeklyTotal / goalSeconds, 1) : 0;
+  var pctDisplay = Math.round((weeklyTotal / goalSeconds) * 100);
+
+  // Set fill width and color
+  goalFill.style.width = (pct * 100) + '%';
+  goalFill.className = 'goal-fill';
+  if (pct < 0.7) {
+    goalFill.classList.add('goal-green');
+  } else if (pct < 0.9) {
+    goalFill.classList.add('goal-yellow');
+  } else {
+    goalFill.classList.add('goal-red');
+  }
+
+  // Format text
+  var usedHours = (weeklyTotal / 3600).toFixed(1);
+  goalText.textContent = usedHours + 'h de ' + goalHours + 'h usadas esta semana';
+
+  // Badge
+  if (weeklyTotal <= goalSeconds) {
+    goalBadge.textContent = 'Meta cumprida!';
+    goalBadge.className = 'goal-badge achieved';
+  } else {
+    goalBadge.textContent = pctDisplay + '%';
+    goalBadge.className = 'goal-badge';
+  }
+
+  goalCard.style.display = '';
 }
 
 // ── Init ──
 
 loadData();
 startNuclearTimer();
+updatePauseUI();
 
 // Streak badge
 chrome.runtime.sendMessage({ type: 'getStreak' }, function(streak) {
@@ -1141,7 +1707,7 @@ chrome.storage.onChanged.addListener(function(changes, area) {
     var structuralKeys = [STORAGE_KEYS.SITES, STORAGE_KEYS.ENABLED,
                 STORAGE_KEYS.BYPASSED, STORAGE_KEYS.NUCLEAR,
                 STORAGE_KEYS.SCHEDULE, STORAGE_KEYS.WEEKLY_LIMITS,
-                STORAGE_KEYS.EXTRA];
+                STORAGE_KEYS.EXTRA, STORAGE_KEYS.GOALS];
     if (structuralKeys.some(function(k) { return k in changes; })) {
       queueLoadData();
     }
@@ -1154,7 +1720,8 @@ var EXPORT_KEYS = [
   'focusGuard_sites', 'focusGuard_weeklyLimits', 'focusGuard_schedule',
   'focusGuard_challenge', 'focusGuard_entryChallenge', 'focusGuard_extraTimeMin',
   'focusGuard_pomodoroConfig', 'focusGuard_breathingConfig',
-  'focusGuard_hideShorts', 'focusGuard_hideComments'
+  'focusGuard_hideShorts', 'focusGuard_hideComments',
+  'focusGuard_notifications', 'focusGuard_goals'
 ];
 
 function validateImportData(data) {
@@ -1248,3 +1815,99 @@ document.getElementById('btnImportMerge').addEventListener('click', async functi
   loadSettings();
   loadData();
 });
+
+// ── Onboarding ──
+
+function initOnboarding() {
+  chrome.storage.local.get(['focusGuard_onboarded', STORAGE_KEYS.SITES], function(data) {
+    var onboarded = data.focusGuard_onboarded;
+    var sites = data[STORAGE_KEYS.SITES];
+    if (onboarded || Object.keys(sites || {}).length > 0) return;
+
+    var overlay = document.getElementById('onboardingOverlay');
+    overlay.hidden = false;
+
+    var currentStep = 1;
+    var addedSites = [];
+
+    function showStep(step) {
+      currentStep = step;
+      var steps = overlay.querySelectorAll('.onboarding-step');
+      steps.forEach(function(s) {
+        s.classList.remove('active');
+        if (parseInt(s.getAttribute('data-step')) === step) {
+          s.classList.add('active');
+        }
+      });
+      var dots = overlay.querySelectorAll('.onboarding-dot');
+      dots.forEach(function(d) {
+        d.classList.toggle('active', parseInt(d.getAttribute('data-dot')) === step);
+      });
+    }
+
+    function finishOnboarding() {
+      chrome.storage.local.set({ focusGuard_onboarded: true });
+      overlay.hidden = true;
+      if (typeof loadData === 'function') loadData();
+    }
+
+    // Step 1 buttons
+    document.getElementById('onbSkip1').addEventListener('click', finishOnboarding);
+    document.getElementById('onbNext1').addEventListener('click', function() { showStep(2); });
+
+    // Step 2: suggestion chips
+    var chips = overlay.querySelectorAll('.suggestion-chip');
+    var domainInput = document.getElementById('onbDomain');
+    chips.forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        chips.forEach(function(c) { c.classList.remove('selected'); });
+        chip.classList.add('selected');
+        domainInput.value = chip.getAttribute('data-domain');
+      });
+    });
+
+    // Step 2: add site
+    var addedListEl = document.getElementById('onbAddedList');
+    document.getElementById('onbAddSite').addEventListener('click', async function() {
+      var domain = domainInput.value.trim().toLowerCase();
+      domain = domain.replace(/^(https?:\/\/)?(www\.)?/, '');
+      domain = domain.replace(/[#?].*$/, '').replace(/\/+$/, '');
+      if (!domain) return;
+      var domainPart = domain.split('/')[0];
+      if (!domainPart.includes('.') || domainPart.length > 255) return;
+
+      var limitMin = parseInt(document.getElementById('onbLimit').value) || 30;
+      limitMin = Math.min(Math.max(limitMin, 1), 1440);
+
+      // Save to storage
+      var sData = await chrome.storage.local.get(STORAGE_KEYS.SITES);
+      var sites = sData[STORAGE_KEYS.SITES] || {};
+      sites[domain] = limitMin;
+      await chrome.storage.local.set({ [STORAGE_KEYS.SITES]: sites });
+
+      addedSites.push({ domain: domain, limit: limitMin });
+
+      // Update list display
+      addedListEl.innerHTML = '';
+      addedSites.forEach(function(s) {
+        var item = document.createElement('div');
+        item.className = 'onboarding-added-item';
+        item.innerHTML = '<span>' + s.domain + '</span><span class="added-limit">' + s.limit + ' min/dia</span>';
+        addedListEl.appendChild(item);
+      });
+
+      // Reset inputs
+      domainInput.value = '';
+      chips.forEach(function(c) { c.classList.remove('selected'); });
+    });
+
+    // Step 2 buttons
+    document.getElementById('onbSkip2').addEventListener('click', finishOnboarding);
+    document.getElementById('onbNext2').addEventListener('click', function() { showStep(3); });
+
+    // Step 3: finish
+    document.getElementById('onbFinish').addEventListener('click', finishOnboarding);
+  });
+}
+
+initOnboarding();
