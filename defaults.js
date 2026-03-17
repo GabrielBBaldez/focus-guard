@@ -22,4 +22,8 @@ var DEFAULTS = {
   EXTRA_TIME_MIN: 5,
   TOAST_DURATION: 3000,
   THEME: 'dark',
+  NOTIFICATIONS: {
+    enabled: true,
+    thresholds: { 50: false, 75: true, 90: true }
+  },
 };

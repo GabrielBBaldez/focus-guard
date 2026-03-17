@@ -27,7 +27,8 @@ const STORAGE_KEYS = {
   WEEKLY_LIMITS: 'focusGuard_weeklyLimits',
   EXTRA_TIME_MIN: 'focusGuard_extraTimeMin',
   ENTRY_CHALLENGE: 'focusGuard_entryChallenge',
-  THEME: 'focusGuard_theme'
+  THEME: 'focusGuard_theme',
+  NOTIFICATIONS: 'focusGuard_notifications'
 };
 
 // ── DOM Elements ──
@@ -58,6 +59,9 @@ const btnSaveSchedule = document.getElementById('btnSaveSchedule');
 const btnClearSchedule = document.getElementById('btnClearSchedule');
 const hideShortsToggle = document.getElementById('hideShortsToggle');
 const hideCommentsToggle = document.getElementById('hideCommentsToggle');
+const notify50 = document.getElementById('notify50');
+const notify75 = document.getElementById('notify75');
+const notify90 = document.getElementById('notify90');
 const btnNuclear = document.getElementById('btnNuclear');
 const nuclearHoursInput = document.getElementById('nuclearHours');
 
@@ -862,6 +866,13 @@ async function loadSettings() {
   hideShortsToggle.checked = !!shortsData[STORAGE_KEYS.HIDE_SHORTS];
   hideCommentsToggle.checked = !!shortsData[STORAGE_KEYS.HIDE_COMMENTS];
 
+  // Notification thresholds
+  var notifData = await chrome.storage.local.get(STORAGE_KEYS.NOTIFICATIONS);
+  var notifConfig = notifData[STORAGE_KEYS.NOTIFICATIONS] || DEFAULTS.NOTIFICATIONS;
+  notify50.checked = !!notifConfig.thresholds[50];
+  notify75.checked = !!notifConfig.thresholds[75];
+  notify90.checked = !!notifConfig.thresholds[90];
+
   // Pomodoro Config
   var pomData = await chrome.storage.local.get('focusGuard_pomodoroConfig');
   var pomConfig = pomData.focusGuard_pomodoroConfig || { focus: DEFAULTS.POMODORO_FOCUS, break: DEFAULTS.POMODORO_BREAK };
@@ -1071,6 +1082,26 @@ hideCommentsToggle.addEventListener('change', async function() {
   });
 });
 
+// Notification threshold toggles
+function saveNotificationConfig() {
+  var config = {
+    enabled: true,
+    thresholds: {
+      50: notify50.checked,
+      75: notify75.checked,
+      90: notify90.checked
+    }
+  };
+  chrome.runtime.sendMessage({
+    type: 'setNotificationConfig',
+    config: config
+  }, function() { void chrome.runtime.lastError; });
+}
+
+notify50.addEventListener('change', saveNotificationConfig);
+notify75.addEventListener('change', saveNotificationConfig);
+notify90.addEventListener('change', saveNotificationConfig);
+
 // Nuclear Option
 btnNuclear.addEventListener('click', function() {
   var hours = parseFloat(nuclearHoursInput.value) || 2;
@@ -1229,7 +1260,8 @@ var EXPORT_KEYS = [
   'focusGuard_sites', 'focusGuard_weeklyLimits', 'focusGuard_schedule',
   'focusGuard_challenge', 'focusGuard_entryChallenge', 'focusGuard_extraTimeMin',
   'focusGuard_pomodoroConfig', 'focusGuard_breathingConfig',
-  'focusGuard_hideShorts', 'focusGuard_hideComments'
+  'focusGuard_hideShorts', 'focusGuard_hideComments',
+  'focusGuard_notifications'
 ];
 
 function validateImportData(data) {

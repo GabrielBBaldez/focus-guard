@@ -18,13 +18,66 @@ const STORAGE_KEYS = {
   EXTRA_TIME_MIN: 'focusGuard_extraTimeMin', // number (default 5)
   ENTRY_CHALLENGE: 'focusGuard_entryChallenge', // { enabled: boolean }
   ENTRY_PASSED: 'focusGuard_entryPassed', // { pattern: timestamp } - entry challenges passed today
-  THEME: 'focusGuard_theme' // 'dark' | 'light' | 'system'
+  THEME: 'focusGuard_theme', // 'dark' | 'light' | 'system'
+  NOTIFICATIONS: 'focusGuard_notifications' // { enabled: boolean, thresholds: { 50: bool, 75: bool, 90: bool } }
 };
 
 let activeTabId = null;
 let activeHostname = null;
 let activeUrl = null;
 let trackingInterval = null;
+
+// ── Notification Messages ──
+
+const NOTIFICATION_MESSAGES = {
+  50: [
+    'Voce ja usou metade do tempo em {site}. Ainda tem {remaining}min.',
+    'Metade do limite atingida para {site}. Restam {remaining}min.',
+    '50% do tempo usado em {site}. Use os {remaining}min restantes com sabedoria.'
+  ],
+  75: [
+    'Atencao! Restam apenas {remaining}min para {site}.',
+    '{site}: 75% do limite atingido. Faltam {remaining}min.',
+    'Quase la! Apenas {remaining}min restantes para {site}.'
+  ],
+  90: [
+    'Ultimos minutos! {site} sera bloqueado em {remaining}min.',
+    'Alerta: apenas {remaining}min antes de {site} ser bloqueado!',
+    '{site} sera bloqueado em breve. Restam {remaining}min.'
+  ]
+};
+
+async function checkNotificationThresholds(pattern, usedSeconds, limitSeconds) {
+  const notifData = await chrome.storage.local.get(STORAGE_KEYS.NOTIFICATIONS);
+  const config = notifData[STORAGE_KEYS.NOTIFICATIONS] || DEFAULTS.NOTIFICATIONS;
+  if (!config.enabled) return;
+
+  const percentage = (usedSeconds / limitSeconds) * 100;
+  const remainingMin = Math.max(0, Math.round((limitSeconds - usedSeconds) / 60));
+
+  for (const threshold of [50, 75, 90]) {
+    if (!config.thresholds[threshold]) continue;
+    if (percentage < threshold) continue;
+
+    const warnKey = `_warned${threshold}_${pattern}`;
+    const warnData = await chrome.storage.local.get(warnKey);
+    if (warnData[warnKey]) continue;
+
+    await chrome.storage.local.set({ [warnKey]: true });
+    const messages = NOTIFICATION_MESSAGES[threshold];
+    const message = messages[Math.floor(Math.random() * messages.length)]
+      .replace(/\{site\}/g, pattern)
+      .replace(/\{remaining\}/g, String(remainingMin));
+
+    chrome.notifications.create(`threshold-${threshold}-${pattern}`, {
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: 'Focus Guard',
+      message: message,
+      priority: 1
+    });
+  }
+}
 
 // ── Date Helpers ──
 
@@ -160,9 +213,12 @@ async function _doResetIfNewDay() {
     if (data[STORAGE_KEYS.USAGE] && data[STORAGE_KEYS.USAGE_DATE]) {
       await saveToHistory(data[STORAGE_KEYS.USAGE_DATE], data[STORAGE_KEYS.USAGE]);
     }
-    // Clear 5-min warning flags
+    // Clear 5-min warning flags and threshold notification flags
     const allKeys = await chrome.storage.local.get(null);
-    const warnKeys = Object.keys(allKeys).filter(k => k.startsWith('_warned5_'));
+    const warnKeys = Object.keys(allKeys).filter(k =>
+      k.startsWith('_warned5_') || k.startsWith('_warned50_') ||
+      k.startsWith('_warned75_') || k.startsWith('_warned90_')
+    );
     if (warnKeys.length > 0) await chrome.storage.local.remove(warnKeys);
 
     // --- Streak evaluation (BEFORE reset) ---
@@ -411,6 +467,10 @@ async function addUsage(hostname, seconds) {
 
   usage[pattern] = (usage[pattern] || 0) + seconds;
   await chrome.storage.local.set({ [STORAGE_KEYS.USAGE]: usage });
+
+  // Check notification thresholds
+  const baseLimitSeconds = sites[pattern] * 60;
+  await checkNotificationThresholds(pattern, usage[pattern], baseLimitSeconds);
 
   // Get extra time bonus
   const extraData = await chrome.storage.local.get(STORAGE_KEYS.EXTRA);
@@ -734,9 +794,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'resetUsage') {
     (async () => {
       try {
-        // Clear warning flags
+        // Clear warning flags and threshold notification flags
         const allKeys = await chrome.storage.local.get(null);
-        const warnKeys = Object.keys(allKeys).filter(k => k.startsWith('_warned5_'));
+        const warnKeys = Object.keys(allKeys).filter(k =>
+          k.startsWith('_warned5_') || k.startsWith('_warned50_') ||
+          k.startsWith('_warned75_') || k.startsWith('_warned90_')
+        );
         if (warnKeys.length > 0) await chrome.storage.local.remove(warnKeys);
 
         await chrome.storage.local.set({
@@ -964,6 +1027,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const text = getRandomChallenge(config.difficulty);
         sendResponse({ enabled: true, text, difficulty: config.difficulty });
       } catch { sendResponse({ enabled: false }); }
+    })();
+    return true;
+  }
+
+  // Get notification config
+  if (msg.type === 'getNotificationConfig') {
+    (async () => {
+      try {
+        const data = await chrome.storage.local.get(STORAGE_KEYS.NOTIFICATIONS);
+        sendResponse(data[STORAGE_KEYS.NOTIFICATIONS] || DEFAULTS.NOTIFICATIONS);
+      } catch { sendResponse(DEFAULTS.NOTIFICATIONS); }
+    })();
+    return true;
+  }
+
+  // Set notification config
+  if (msg.type === 'setNotificationConfig') {
+    (async () => {
+      try {
+        await chrome.storage.local.set({ [STORAGE_KEYS.NOTIFICATIONS]: msg.config });
+        sendResponse({ ok: true });
+      } catch { sendResponse({ error: 'Internal error' }); }
     })();
     return true;
   }
