@@ -19,13 +19,28 @@ const STORAGE_KEYS = {
   ENTRY_CHALLENGE: 'focusGuard_entryChallenge', // { enabled: boolean }
   ENTRY_PASSED: 'focusGuard_entryPassed', // { pattern: timestamp } - entry challenges passed today
   THEME: 'focusGuard_theme', // 'dark' | 'light' | 'system'
-  NOTIFICATIONS: 'focusGuard_notifications' // { enabled: boolean, thresholds: { 50: bool, 75: bool, 90: bool } }
+  NOTIFICATIONS: 'focusGuard_notifications', // { enabled: boolean, thresholds: { 50: bool, 75: bool, 90: bool } }
+  PAUSED: 'focusGuard_paused',           // { until: timestamp } | null
+  PAUSE_COUNT: 'focusGuard_pauseCount'   // number (max 3/day)
 };
 
 let activeTabId = null;
 let activeHostname = null;
 let activeUrl = null;
 let trackingInterval = null;
+
+// ── Pause Tracking ──
+
+async function isPaused() {
+  const data = await chrome.storage.local.get(STORAGE_KEYS.PAUSED);
+  const paused = data[STORAGE_KEYS.PAUSED];
+  if (!paused || !paused.until) return false;
+  if (Date.now() >= paused.until) {
+    await chrome.storage.local.remove(STORAGE_KEYS.PAUSED);
+    return false;
+  }
+  return true;
+}
 
 // ── Notification Messages ──
 
@@ -253,8 +268,10 @@ async function _doResetIfNewDay() {
       [STORAGE_KEYS.BYPASSED]: {},
       [STORAGE_KEYS.EXTRA]: {},
       [STORAGE_KEYS.ENTRY_PASSED]: {},
+      [STORAGE_KEYS.PAUSE_COUNT]: 0,
       focusGuard_streak: streak
     });
+    await chrome.storage.local.remove(STORAGE_KEYS.PAUSED);
     return {};
   }
   return data[STORAGE_KEYS.USAGE] || {};
@@ -444,6 +461,7 @@ function getRandomChallenge(difficulty) {
 // ── Core Tracking ──
 
 async function addUsage(hostname, seconds) {
+  if (await isPaused()) return;
   if (!activeTabId) return;
   try {
     const tab = await chrome.tabs.get(activeTabId);
@@ -521,6 +539,11 @@ async function addUsage(hostname, seconds) {
 // ── Badge ──
 
 async function updateBadge() {
+  if (await isPaused()) {
+    chrome.action.setBadgeText({ text: '⏸' });
+    chrome.action.setBadgeBackgroundColor({ color: '#eab308' });
+    return;
+  }
   const usage = await resetIfNewDay();
   const sites = await getTrackedSites();
 
@@ -533,8 +556,14 @@ async function updateBadge() {
   }
 
   if (nuclearActive) {
-    chrome.action.setBadgeText({ text: 'N' });
-    chrome.action.setBadgeBackgroundColor({ color: '#dc2626' });
+    const nuclearInfo = await getNuclearInfo();
+    if (nuclearInfo && nuclearInfo.mode === 'focus') {
+      chrome.action.setBadgeText({ text: 'F' });
+      chrome.action.setBadgeBackgroundColor({ color: '#6366f1' });
+    } else {
+      chrome.action.setBadgeText({ text: 'N' });
+      chrome.action.setBadgeBackgroundColor({ color: '#dc2626' });
+    }
   } else if (totalMinutes > 0) {
     const text = totalMinutes >= 60 ? `${Math.floor(totalMinutes / 60)}h` : `${totalMinutes}m`;
     chrome.action.setBadgeText({ text });
@@ -550,13 +579,14 @@ async function blockSite(pattern, reason) {
   try {
     const nuclearActive = await isNuclearBlocked(pattern);
     const nuclearParam = nuclearActive ? '&nuclear=1' : '';
+    const focusParam = reason === 'focus' ? '&focus=1' : '';
     const reasonParam = reason === 'weekly' ? '&reason=weekly' : '';
     const tabs = await chrome.tabs.query({});
     const sites = await getTrackedSites();
     for (const tab of tabs) {
       const matched = findMatchingPattern(tab.url, sites);
       if (matched === pattern) {
-        const blockUrl = chrome.runtime.getURL(`blocked.html?site=${encodeURIComponent(pattern)}${nuclearParam}${reasonParam}`);
+        const blockUrl = chrome.runtime.getURL(`blocked.html?site=${encodeURIComponent(pattern)}${nuclearParam}${focusParam}${reasonParam}`);
         chrome.tabs.update(tab.id, { url: blockUrl });
       }
     }
@@ -927,7 +957,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         const until = Date.now() + (hours * 60 * 60 * 1000);
         await chrome.storage.local.set({
-          [STORAGE_KEYS.NUCLEAR]: { until, sites }
+          [STORAGE_KEYS.NUCLEAR]: { until, sites, mode: 'nuclear' }
         });
 
         // Create alarm for auto-cleanup
@@ -952,17 +982,102 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Focus Mode: selective nuclear for chosen sites
+  if (msg.type === 'activateFocusMode') {
+    (async () => {
+      try {
+        const minutes = Math.min(Math.max(parseInt(msg.minutes) || 30, 5), 480);
+        const sites = msg.sites; // array of patterns
+        if (!Array.isArray(sites) || sites.length === 0) {
+          sendResponse({ error: 'Selecione pelo menos um site' });
+          return;
+        }
+
+        const until = Date.now() + (minutes * 60 * 1000);
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.NUCLEAR]: { until, sites, mode: 'focus' }
+        });
+
+        // Increment focus mode counter
+        const countData = await chrome.storage.local.get('focusGuard_focusModeCount');
+        const count = (countData['focusGuard_focusModeCount'] || 0) + 1;
+        await chrome.storage.local.set({ 'focusGuard_focusModeCount': count });
+
+        // Create alarm for auto-cleanup
+        chrome.alarms.create('nuclearEnd', { when: until });
+
+        // Immediately block matching tabs
+        for (const pattern of sites) {
+          await blockSite(pattern, 'focus');
+        }
+
+        updateBadge();
+        sendResponse({ ok: true, until });
+      } catch { sendResponse({ error: 'Internal error' }); }
+    })();
+    return true;
+  }
+
   // Get nuclear status
   if (msg.type === 'getNuclearStatus') {
     (async () => {
       try {
         const nuclear = await getNuclearInfo();
         if (nuclear && nuclear.until && Date.now() < nuclear.until) {
-          sendResponse({ active: true, until: nuclear.until, sites: nuclear.sites });
+          sendResponse({ active: true, until: nuclear.until, sites: nuclear.sites, mode: nuclear.mode || 'nuclear' });
         } else {
           sendResponse({ active: false });
         }
       } catch { sendResponse({ active: false }); }
+    })();
+    return true;
+  }
+
+  // Pause tracking
+  if (msg.type === 'pauseTracking') {
+    (async () => {
+      try {
+        // Check nuclear not active
+        if (await isNuclearActive()) {
+          sendResponse({ success: false, error: 'Nuclear option is active' });
+          return;
+        }
+        // Check pause count
+        const countData = await chrome.storage.local.get(STORAGE_KEYS.PAUSE_COUNT);
+        const pauseCount = countData[STORAGE_KEYS.PAUSE_COUNT] || 0;
+        if (pauseCount >= 3) {
+          sendResponse({ success: false, error: 'Pause limit reached (3/day)', remaining: 0 });
+          return;
+        }
+        const minutes = msg.minutes || 5;
+        const until = Date.now() + minutes * 60 * 1000;
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.PAUSED]: { until },
+          [STORAGE_KEYS.PAUSE_COUNT]: pauseCount + 1
+        });
+        chrome.alarms.create('pauseEnd', { when: until });
+        stopTracking();
+        updateBadge();
+        sendResponse({ success: true, until, remaining: 3 - (pauseCount + 1) });
+      } catch { sendResponse({ success: false, error: 'Internal error' }); }
+    })();
+    return true;
+  }
+
+  // Get pause status
+  if (msg.type === 'getPauseStatus') {
+    (async () => {
+      try {
+        const data = await chrome.storage.local.get([STORAGE_KEYS.PAUSED, STORAGE_KEYS.PAUSE_COUNT]);
+        const paused = data[STORAGE_KEYS.PAUSED];
+        const pauseCount = data[STORAGE_KEYS.PAUSE_COUNT] || 0;
+        if (paused && paused.until && Date.now() < paused.until) {
+          sendResponse({ active: true, until: paused.until, pausesRemaining: 3 - pauseCount });
+        } else {
+          if (paused) await chrome.storage.local.remove(STORAGE_KEYS.PAUSED);
+          sendResponse({ active: false, pausesRemaining: 3 - pauseCount });
+        }
+      } catch { sendResponse({ active: false, pausesRemaining: 0 }); }
     })();
     return true;
   }
@@ -1224,6 +1339,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   if (alarm.name === 'historySnapshot') {
     await snapshotToday();
+  }
+
+  if (alarm.name === 'pauseEnd') {
+    await chrome.storage.local.remove(STORAGE_KEYS.PAUSED);
+    await initActiveTab();
+    updateBadge();
   }
 
   if (alarm.name === 'nuclearEnd') {

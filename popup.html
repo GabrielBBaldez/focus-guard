@@ -211,6 +211,211 @@
     .nuclear-banner .nb-text { font-size: 11px; font-weight: 600; color: var(--danger-text); margin-top: 2px; }
     .nuclear-banner .nb-time { font-size: 13px; font-weight: 800; color: #fff; margin-top: 2px; }
 
+    /* ── Focus Mode Banner ── */
+    .nuclear-banner.focus-mode {
+      background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.25));
+      border-bottom-color: var(--accent);
+    }
+    .nuclear-banner.focus-mode .nb-text { color: var(--accent-light); }
+    .nuclear-banner.focus-mode .nb-time { color: var(--accent-light); }
+
+    /* ── Focus Mode Button ── */
+    .btn-focus-mode {
+      width: 100%; padding: 10px 16px;
+      background: var(--accent-alpha-08);
+      border: 1px solid var(--accent-alpha-15);
+      border-radius: 8px;
+      color: var(--accent-light);
+      font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all 0.2s;
+      margin-bottom: 8px;
+    }
+    .btn-focus-mode:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-focus-mode:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Focus Mode Modal ── */
+    .focus-modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 1000;
+      align-items: center; justify-content: center;
+    }
+    .focus-modal-overlay.active { display: flex; }
+    .focus-modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-primary);
+      border-radius: 12px;
+      width: 340px; max-height: 450px;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .focus-modal-title {
+      font-size: 15px; font-weight: 700;
+      color: var(--accent-light);
+      margin-bottom: 14px; text-align: center;
+    }
+    .focus-modal-section {
+      margin-bottom: 14px;
+    }
+    .focus-modal-label {
+      font-size: 10px; font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .focus-sites-list {
+      max-height: 140px; overflow-y: auto;
+      border: 1px solid var(--border-primary);
+      border-radius: 6px; padding: 6px;
+    }
+    .focus-site-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 6px; border-radius: 4px;
+      font-size: 12px; color: var(--text-primary);
+    }
+    .focus-site-item:hover { background: var(--bg-hover); }
+    .focus-site-item input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+    .focus-duration-btns {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .focus-dur-btn {
+      padding: 6px 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-primary);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .focus-dur-btn:hover { border-color: var(--accent); color: var(--accent-light); }
+    .focus-dur-btn.active {
+      background: var(--accent-alpha-15);
+      border-color: var(--accent);
+      color: var(--accent-light);
+    }
+    .focus-custom-row {
+      display: flex; align-items: center; gap: 6px; margin-top: 8px;
+    }
+    .focus-custom-row input {
+      width: 60px; padding: 5px 8px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-primary);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 11px; text-align: center;
+    }
+    .focus-custom-row span {
+      font-size: 11px; color: var(--text-tertiary);
+    }
+    .focus-modal-actions {
+      display: flex; gap: 8px; margin-top: 16px;
+    }
+    .focus-btn-cancel {
+      flex: 1; padding: 9px;
+      background: transparent;
+      border: 1px solid var(--border-primary);
+      border-radius: 8px;
+      color: var(--text-tertiary);
+      font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .focus-btn-cancel:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+    .focus-btn-start {
+      flex: 1; padding: 9px;
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .focus-btn-start:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    /* ── Pause Button & Dropdown ── */
+    .pause-wrapper {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .btn-pause {
+      width: 32px; height: 32px;
+      background: transparent;
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition-fast);
+    }
+    .btn-pause:hover {
+      border-color: var(--warning);
+      color: var(--warning);
+      background: rgba(234, 179, 8, 0.08);
+    }
+    .btn-pause:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .pause-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      z-index: 100;
+      min-width: 100px;
+      overflow: hidden;
+    }
+    .pause-option {
+      display: block;
+      width: 100%;
+      padding: 8px 14px;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      transition: var(--transition-fast);
+    }
+    .pause-option:hover {
+      background: var(--bg-hover);
+      color: var(--warning);
+    }
+
+    /* ── Pause Banner ── */
+    .pause-banner {
+      display: none;
+      padding: 8px 16px;
+      background: rgba(234, 179, 8, 0.1);
+      border-bottom: 1px solid rgba(234, 179, 8, 0.25);
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--warning);
+    }
+    .pause-banner.active { display: block; }
+    .pause-remaining {
+      display: block;
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
     /* ── Total bar ── */
     .total-bar {
       padding: 12px 20px;
@@ -986,10 +1191,21 @@
         <div class="brand-sub">Controle seu tempo online</div>
       </div>
     </div>
-    <label class="toggle">
-      <input type="checkbox" id="enableToggle" checked>
-      <span class="toggle-track"></span>
-    </label>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="pause-wrapper" id="pauseWrapper">
+        <button class="btn-pause" id="pauseBtn" title="Pausar tracking">&#9208;</button>
+        <div class="pause-dropdown" id="pauseDropdown" style="display:none;">
+          <button class="pause-option" data-minutes="5">5 min</button>
+          <button class="pause-option" data-minutes="15">15 min</button>
+          <button class="pause-option" data-minutes="30">30 min</button>
+          <button class="pause-option" data-minutes="60">1 hora</button>
+        </div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="enableToggle" checked>
+        <span class="toggle-track"></span>
+      </label>
+    </div>
     <div class="streak-badge" id="streakBadge" data-tooltip="Dias consecutivos dentro do limite" style="display:none">
       <span class="streak-icon">&#128293;</span>
       <span class="streak-count" id="streakCount">0</span>
@@ -1001,6 +1217,11 @@
     <div class="nb-icon">&#9762;</div>
     <div class="nb-text">NUCLEAR OPTION ATIVA</div>
     <div class="nb-time" id="nuclearTime">--</div>
+  </div>
+
+  <div class="pause-banner" id="pauseBanner">
+    &#9208; Pausado — retoma em <span id="pauseCountdown">--:--</span>
+    <span class="pause-remaining" id="pauseRemaining"></span>
   </div>
 
   <div class="global-progress" id="globalProgress">
@@ -1020,6 +1241,10 @@
     <div class="total-bar">
       <span class="total-label">Tempo total hoje</span>
       <span class="total-value" id="totalTime">0s</span>
+    </div>
+
+    <div style="padding: 8px 16px 0;">
+      <button class="btn-focus-mode" id="focusModeBtn">&#9889; Modo Foco</button>
     </div>
 
     <div class="site-list" id="siteList"></div>

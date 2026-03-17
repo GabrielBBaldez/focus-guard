@@ -28,7 +28,9 @@ const STORAGE_KEYS = {
   EXTRA_TIME_MIN: 'focusGuard_extraTimeMin',
   ENTRY_CHALLENGE: 'focusGuard_entryChallenge',
   THEME: 'focusGuard_theme',
-  NOTIFICATIONS: 'focusGuard_notifications'
+  NOTIFICATIONS: 'focusGuard_notifications',
+  PAUSED: 'focusGuard_paused',
+  PAUSE_COUNT: 'focusGuard_pauseCount'
 };
 
 // ── DOM Elements ──
@@ -45,6 +47,14 @@ const newWeeklyUnitSelect = document.getElementById('newWeeklyUnit');
 const totalTimeEl = document.getElementById('totalTime');
 const nuclearBanner = document.getElementById('nuclearBanner');
 const nuclearTimeEl = document.getElementById('nuclearTime');
+
+// Pause
+const pauseWrapper = document.getElementById('pauseWrapper');
+const pauseBtn = document.getElementById('pauseBtn');
+const pauseDropdown = document.getElementById('pauseDropdown');
+const pauseBanner = document.getElementById('pauseBanner');
+const pauseCountdown = document.getElementById('pauseCountdown');
+const pauseRemaining = document.getElementById('pauseRemaining');
 
 // Settings
 const challengeToggle = document.getElementById('challengeToggle');
@@ -226,6 +236,90 @@ function startNuclearTimer() {
   updateNuclearBanner();
   nuclearTimer = setInterval(updateNuclearBanner, 30000);
 }
+
+// ── Pause UI ──
+
+var pauseCountdownTimer = null;
+
+function updatePauseUI() {
+  chrome.runtime.sendMessage({ type: 'getPauseStatus' }, function(response) {
+    if (chrome.runtime.lastError || !response) return;
+
+    if (response.active) {
+      pauseBanner.classList.add('active');
+      pauseBtn.disabled = true;
+      pauseDropdown.style.display = 'none';
+
+      // Start countdown
+      if (pauseCountdownTimer) clearInterval(pauseCountdownTimer);
+      function tickCountdown() {
+        var remaining = response.until - Date.now();
+        if (remaining <= 0) {
+          pauseBanner.classList.remove('active');
+          pauseBtn.disabled = false;
+          pauseCountdown.textContent = '00:00';
+          if (pauseCountdownTimer) clearInterval(pauseCountdownTimer);
+          updatePauseUI();
+          return;
+        }
+        var m = Math.floor(remaining / 60000);
+        var s = Math.floor((remaining % 60000) / 1000);
+        pauseCountdown.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+      }
+      tickCountdown();
+      pauseCountdownTimer = setInterval(tickCountdown, 1000);
+
+      pauseRemaining.textContent = response.pausesRemaining + ' pausas restantes hoje';
+    } else {
+      pauseBanner.classList.remove('active');
+      if (pauseCountdownTimer) { clearInterval(pauseCountdownTimer); pauseCountdownTimer = null; }
+
+      if (response.pausesRemaining <= 0) {
+        pauseBtn.disabled = true;
+        pauseBtn.title = 'Limite de pausas atingido (3/dia)';
+      } else {
+        pauseBtn.disabled = false;
+        pauseBtn.title = 'Pausar tracking (' + response.pausesRemaining + ' restantes)';
+      }
+    }
+  });
+
+  // Hide pause wrapper during nuclear/focus mode
+  chrome.runtime.sendMessage({ type: 'getNuclearStatus' }, function(response) {
+    if (chrome.runtime.lastError || !response) return;
+    if (response.active) {
+      pauseWrapper.style.display = 'none';
+    } else {
+      pauseWrapper.style.display = '';
+    }
+  });
+}
+
+// Toggle dropdown
+pauseBtn.addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (pauseBtn.disabled) return;
+  pauseDropdown.style.display = pauseDropdown.style.display === 'none' ? '' : 'none';
+});
+
+// Close dropdown on outside click
+document.addEventListener('click', function() {
+  pauseDropdown.style.display = 'none';
+});
+
+// Pause option clicks
+pauseDropdown.addEventListener('click', function(e) {
+  var option = e.target.closest('.pause-option');
+  if (!option) return;
+  var minutes = parseInt(option.dataset.minutes);
+  pauseDropdown.style.display = 'none';
+  chrome.runtime.sendMessage({ type: 'pauseTracking', minutes: minutes }, function(response) {
+    if (chrome.runtime.lastError || !response) return;
+    if (response.success) {
+      updatePauseUI();
+    }
+  });
+});
 
 // ── Sites Tab ──
 
@@ -1213,6 +1307,7 @@ async function refreshUsage() {
 
 loadData();
 startNuclearTimer();
+updatePauseUI();
 
 // Streak badge
 chrome.runtime.sendMessage({ type: 'getStreak' }, function(streak) {
