@@ -22,7 +22,18 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'focusGuard_notifications', // { enabled: boolean, thresholds: { 50: bool, 75: bool, 90: bool } }
   PAUSED: 'focusGuard_paused',           // { until: timestamp } | null
   PAUSE_COUNT: 'focusGuard_pauseCount',   // number (max 3/day)
-  GOALS: 'focusGuard_goals'              // { general: hours } | null
+  GOALS: 'focusGuard_goals',              // { general: hours } | null
+  STREAK: 'focusGuard_streak',
+  NO_BYPASS_DAYS: 'focusGuard_noBypassDays',
+  BREATHING_COUNT: 'focusGuard_breathingCount',
+  POMODORO_COUNT: 'focusGuard_pomodoroCount',
+  FOCUS_MODE_COUNT: 'focusGuard_focusModeCount',
+  ACHIEVEMENTS: 'focusGuard_achievements',
+  ONBOARDED: 'focusGuard_onboarded',
+  POMODORO_CONFIG: 'focusGuard_pomodoroConfig',
+  BREATHING_CONFIG: 'focusGuard_breathingConfig',
+  HIDE_SHORTS: 'focusGuard_hideShorts',
+  HIDE_COMMENTS: 'focusGuard_hideComments'
 };
 
 const ACHIEVEMENTS = {
@@ -41,11 +52,11 @@ const ACHIEVEMENTS = {
 };
 
 async function checkAndUnlockAchievement(id) {
-  const data = await new Promise(r => chrome.storage.local.get('focusGuard_achievements', r));
-  const achievements = data.focusGuard_achievements || {};
+  const data = await new Promise(r => chrome.storage.local.get(STORAGE_KEYS.ACHIEVEMENTS, r));
+  const achievements = data[STORAGE_KEYS.ACHIEVEMENTS] || {};
   if (achievements[id]) return; // Already unlocked
   achievements[id] = { unlockedAt: Date.now() };
-  chrome.storage.local.set({ focusGuard_achievements: achievements });
+  chrome.storage.local.set({ [STORAGE_KEYS.ACHIEVEMENTS]: achievements });
   const def = ACHIEVEMENTS[id];
   if (def) {
     chrome.notifications.create(`achievement_${id}`, {
@@ -270,8 +281,8 @@ async function _doResetIfNewDay() {
     if (warnKeys.length > 0) await chrome.storage.local.remove(warnKeys);
 
     // --- Streak evaluation (BEFORE reset) ---
-    const streakResult = await chrome.storage.local.get('focusGuard_streak');
-    const streak = streakResult.focusGuard_streak || { current: 0, best: 0, lastGoodDay: null };
+    const streakResult = await chrome.storage.local.get(STORAGE_KEYS.STREAK);
+    const streak = streakResult[STORAGE_KEYS.STREAK] || { current: 0, best: 0, lastGoodDay: null };
     const sites = await getTrackedSites();
     const bypassed = data[STORAGE_KEYS.BYPASSED] || {};
     const extra = data[STORAGE_KEYS.EXTRA] || {};
@@ -301,10 +312,10 @@ async function _doResetIfNewDay() {
 
     // No-bypass streak tracking
     const usedBypass = Object.keys(bypassed).length > 0 || Object.keys(extra).length > 0;
-    const nbdData = await new Promise(r => chrome.storage.local.get('focusGuard_noBypassDays', r));
-    let noBypassDays = nbdData.focusGuard_noBypassDays || 0;
+    const nbdData = await new Promise(r => chrome.storage.local.get(STORAGE_KEYS.NO_BYPASS_DAYS, r));
+    let noBypassDays = nbdData[STORAGE_KEYS.NO_BYPASS_DAYS] || 0;
     noBypassDays = usedBypass ? 0 : noBypassDays + 1;
-    chrome.storage.local.set({ focusGuard_noBypassDays: noBypassDays });
+    chrome.storage.local.set({ [STORAGE_KEYS.NO_BYPASS_DAYS]: noBypassDays });
     if (noBypassDays >= 7) checkAndUnlockAchievement('no_bypass_7');
 
     // Veteran achievement: check history days
@@ -321,7 +332,7 @@ async function _doResetIfNewDay() {
       [STORAGE_KEYS.EXTRA]: {},
       [STORAGE_KEYS.ENTRY_PASSED]: {},
       [STORAGE_KEYS.PAUSE_COUNT]: 0,
-      focusGuard_streak: streak
+      [STORAGE_KEYS.STREAK]: streak
     });
     await chrome.storage.local.remove(STORAGE_KEYS.PAUSED);
     return {};
@@ -840,8 +851,8 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === 'getStreak') {
-    chrome.storage.local.get('focusGuard_streak', function(data) {
-      sendResponse(data.focusGuard_streak || { current: 0, best: 0, lastGoodDay: null });
+    chrome.storage.local.get(STORAGE_KEYS.STREAK, function(data) {
+      sendResponse(data[STORAGE_KEYS.STREAK] || { current: 0, best: 0, lastGoodDay: null });
     });
     return true;
   }
@@ -1068,9 +1079,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         });
 
         // Increment focus mode counter
-        const countData = await chrome.storage.local.get('focusGuard_focusModeCount');
-        const count = (countData['focusGuard_focusModeCount'] || 0) + 1;
-        await chrome.storage.local.set({ 'focusGuard_focusModeCount': count });
+        const countData = await chrome.storage.local.get(STORAGE_KEYS.FOCUS_MODE_COUNT);
+        const count = (countData[STORAGE_KEYS.FOCUS_MODE_COUNT] || 0) + 1;
+        await chrome.storage.local.set({ [STORAGE_KEYS.FOCUS_MODE_COUNT]: count });
 
         if (count >= 10) checkAndUnlockAchievement('focus_10');
 
@@ -1377,9 +1388,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'breathingCompleted') {
     (async () => {
       try {
-        const bcData = await new Promise(r => chrome.storage.local.get('focusGuard_breathingCount', r));
-        const count = (bcData.focusGuard_breathingCount || 0) + 1;
-        chrome.storage.local.set({ focusGuard_breathingCount: count });
+        const bcData = await new Promise(r => chrome.storage.local.get(STORAGE_KEYS.BREATHING_COUNT, r));
+        const count = (bcData[STORAGE_KEYS.BREATHING_COUNT] || 0) + 1;
+        chrome.storage.local.set({ [STORAGE_KEYS.BREATHING_COUNT]: count });
         if (count >= 5) checkAndUnlockAchievement('breathe_5');
         sendResponse({ count });
       } catch { sendResponse({ count: 0 }); }
@@ -1390,9 +1401,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'pomodoroCompleted') {
     (async () => {
       try {
-        const pcData = await new Promise(r => chrome.storage.local.get('focusGuard_pomodoroCount', r));
-        const count = (pcData.focusGuard_pomodoroCount || 0) + 1;
-        chrome.storage.local.set({ focusGuard_pomodoroCount: count });
+        const pcData = await new Promise(r => chrome.storage.local.get(STORAGE_KEYS.POMODORO_COUNT, r));
+        const count = (pcData[STORAGE_KEYS.POMODORO_COUNT] || 0) + 1;
+        chrome.storage.local.set({ [STORAGE_KEYS.POMODORO_COUNT]: count });
         if (count >= 10) checkAndUnlockAchievement('pomodoro_10');
         sendResponse({ count });
       } catch { sendResponse({ count: 0 }); }
@@ -1403,8 +1414,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'getAchievements') {
     (async () => {
       try {
-        const aData = await new Promise(r => chrome.storage.local.get('focusGuard_achievements', r));
-        sendResponse({ achievements: aData.focusGuard_achievements || {}, definitions: ACHIEVEMENTS });
+        const aData = await new Promise(r => chrome.storage.local.get(STORAGE_KEYS.ACHIEVEMENTS, r));
+        sendResponse({ achievements: aData[STORAGE_KEYS.ACHIEVEMENTS] || {}, definitions: ACHIEVEMENTS });
       } catch { sendResponse({ achievements: {}, definitions: ACHIEVEMENTS }); }
     })();
     return true;
@@ -1444,10 +1455,10 @@ chrome.runtime.onInstalled.addListener(async () => {
     });
   }
 
-  const streakData = await chrome.storage.local.get('focusGuard_streak');
-  if (!streakData.focusGuard_streak) {
+  const streakData = await chrome.storage.local.get(STORAGE_KEYS.STREAK);
+  if (!streakData[STORAGE_KEYS.STREAK]) {
     await chrome.storage.local.set({
-      focusGuard_streak: { current: 0, best: 0, lastGoodDay: null }
+      [STORAGE_KEYS.STREAK]: { current: 0, best: 0, lastGoodDay: null }
     });
   }
 });
