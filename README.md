@@ -25,8 +25,12 @@ Focus Guard e uma extensao para Chrome que monitora quanto tempo voce gasta em s
 ## Screenshots
 
 <p align="center">
-  <img src="store-screenshots/popup-dark.png" alt="Popup" width="300" />
-  <img src="store-screenshots/blocked-page.png" alt="Blocked" width="400" />
+  <img src="store-screenshots/screenshot_1.png" alt="Popup" width="300" />
+  <img src="store-screenshots/screenshot_2.png" alt="Sites" width="300" />
+</p>
+<p align="center">
+  <img src="store-screenshots/screenshot_3.png" alt="History" width="300" />
+  <img src="store-screenshots/screenshot_4.png" alt="Blocked" width="300" />
 </p>
 
 ## Features
