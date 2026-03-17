@@ -481,47 +481,148 @@
       margin-bottom: 64px;
     }
 
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      background: var(--border-subtle);
-      border: 1px solid var(--border-subtle);
-      border-radius: 12px;
-      overflow: hidden;
+    /* ── Carousel ── */
+    .carousel-wrapper {
+      position: relative;
+      margin: 0 -24px;
+      padding: 0 24px;
     }
 
+    .carousel-wrapper::before,
+    .carousel-wrapper::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 80px;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .carousel-wrapper::before {
+      left: 0;
+      background: linear-gradient(90deg, var(--bg), transparent);
+    }
+
+    .carousel-wrapper::after {
+      right: 0;
+      background: linear-gradient(-90deg, var(--bg), transparent);
+    }
+
+    .carousel-track {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px 40px 32px;
+      cursor: grab;
+      scrollbar-width: none;
+    }
+
+    .carousel-track::-webkit-scrollbar { display: none; }
+    .carousel-track:active { cursor: grabbing; }
+
     .feature-card {
-      background: var(--bg-card);
-      padding: 36px 28px;
-      transition: background 0.3s;
+      flex: 0 0 300px;
+      scroll-snap-align: center;
+      background: rgba(17,17,22,0.6);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 28px;
       position: relative;
+      overflow: hidden;
+      transition: transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94),
+                  border-color 0.4s,
+                  box-shadow 0.4s;
+      will-change: transform;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent)), transparent);
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    .feature-card::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+        var(--card-glow, rgba(99,102,241,0.06)) 0%, transparent 60%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s;
     }
 
     .feature-card:hover {
-      background: var(--bg-elevated);
+      transform: translateY(-6px) scale(1.02);
+      border-color: var(--card-accent, rgba(99,102,241,0.3));
+      box-shadow:
+        0 8px 32px rgba(0,0,0,0.3),
+        0 0 48px var(--card-glow, rgba(99,102,241,0.08));
+    }
+
+    .feature-card:hover::before { opacity: 1; }
+    .feature-card:hover::after { opacity: 1; }
+
+    /* Per-card accent colors */
+    .feature-card[data-accent="indigo"] {
+      --card-accent: #6366f1;
+      --card-glow: rgba(99,102,241,0.08);
+    }
+    .feature-card[data-accent="red"] {
+      --card-accent: #ef4444;
+      --card-glow: rgba(239,68,68,0.08);
+    }
+    .feature-card[data-accent="green"] {
+      --card-accent: #22c55e;
+      --card-glow: rgba(34,197,94,0.08);
+    }
+    .feature-card[data-accent="yellow"] {
+      --card-accent: #eab308;
+      --card-glow: rgba(234,179,8,0.08);
+    }
+    .feature-card[data-accent="purple"] {
+      --card-accent: #a78bfa;
+      --card-glow: rgba(167,139,250,0.08);
+    }
+    .feature-card[data-accent="cyan"] {
+      --card-accent: #22d3ee;
+      --card-glow: rgba(34,211,238,0.08);
     }
 
     .feature-icon {
-      width: 40px;
-      height: 40px;
+      width: 48px;
+      height: 48px;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 10px;
+      border-radius: 12px;
       margin-bottom: 20px;
-      font-size: 20px;
+      font-size: 22px;
+      position: relative;
     }
 
-    .fi-indigo { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.15); }
-    .fi-red { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.15); }
-    .fi-green { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.15); }
-    .fi-yellow { background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.15); }
-    .fi-purple { background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.15); }
-    .fi-cyan { background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.15); }
+    .fi-indigo { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); }
+    .fi-red { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); }
+    .fi-green { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); }
+    .fi-yellow { background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.2); }
+    .fi-purple { background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2); }
+    .fi-cyan { background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.2); }
 
     .feature-card h3 {
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 600;
       margin-bottom: 8px;
       color: var(--text);
@@ -530,7 +631,60 @@
     .feature-card p {
       font-size: 13px;
       color: var(--text-muted);
-      line-height: 1.6;
+      line-height: 1.7;
+    }
+
+    /* Carousel controls */
+    .carousel-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 32px;
+    }
+
+    .carousel-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-dim);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      font-size: 18px;
+    }
+
+    .carousel-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent-light);
+      background: rgba(99,102,241,0.06);
+    }
+
+    .carousel-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .carousel-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+      padding: 0;
+    }
+
+    .carousel-dot.active {
+      background: var(--accent);
+      width: 24px;
+      border-radius: 4px;
+      box-shadow: 0 0 8px var(--accent-glow);
     }
 
     /* ── How it works ── */
@@ -965,7 +1119,7 @@
 
       .stats-bar .container { gap: 32px; flex-wrap: wrap; }
 
-      .features-grid { grid-template-columns: 1fr; }
+      .feature-card { flex: 0 0 260px; }
 
       .steps { grid-template-columns: 1fr; gap: 32px; }
       .step-arrow { display: none; }
@@ -1127,51 +1281,58 @@
       <h2 class="section-title reveal">Tudo que voce precisa<br>para manter o foco</h2>
       <p class="section-sub reveal">Ferramentas poderosas com uma interface limpa. Sem complicacao.</p>
 
-      <div class="features-grid reveal">
-        <div class="feature-card">
-          <div class="feature-icon fi-indigo">&#9201;</div>
-          <h3>Limites diarios</h3>
-          <p>Defina quanto tempo pode gastar em cada site por dia. Limites semanais opcionais.</p>
+      <div class="carousel-wrapper reveal">
+        <div class="carousel-track" id="carouselTrack">
+          <div class="feature-card" data-accent="indigo">
+            <div class="feature-icon fi-indigo">&#9201;</div>
+            <h3>Limites diarios</h3>
+            <p>Defina quanto tempo pode gastar em cada site por dia. Limites semanais opcionais.</p>
+          </div>
+          <div class="feature-card" data-accent="red">
+            <div class="feature-icon fi-red">&#9762;</div>
+            <h3>Nuclear Option</h3>
+            <p>Bloqueio total impossivel de burlar. Para quando voce precisa de foco absoluto.</p>
+          </div>
+          <div class="feature-card" data-accent="green">
+            <div class="feature-icon fi-green">&#9889;</div>
+            <h3>Modo Foco</h3>
+            <p>Selecione quais sites bloquear e por quanto tempo. Foco sob medida para o momento.</p>
+          </div>
+          <div class="feature-card" data-accent="yellow">
+            <div class="feature-icon fi-yellow">&#127942;</div>
+            <h3>Conquistas</h3>
+            <p>12 badges para desbloquear conforme voce constroi habitos melhores. Gamificacao real.</p>
+          </div>
+          <div class="feature-card" data-accent="purple">
+            <div class="feature-icon fi-purple">&#128200;</div>
+            <h3>Historico 365 dias</h3>
+            <p>Contribution graph estilo GitHub mostrando sua atividade ao longo do ano inteiro.</p>
+          </div>
+          <div class="feature-card" data-accent="cyan">
+            <div class="feature-icon fi-cyan">&#127912;</div>
+            <h3>Tema claro/escuro</h3>
+            <p>Tema escuro por padrao, claro para quem prefere, ou automatico seguindo o sistema.</p>
+          </div>
+          <div class="feature-card" data-accent="green">
+            <div class="feature-icon fi-green">&#128704;</div>
+            <h3>Pausar tracking</h3>
+            <p>Pause o monitoramento por 5 a 60 minutos sem perder seu streak ou desativar nada.</p>
+          </div>
+          <div class="feature-card" data-accent="yellow">
+            <div class="feature-icon fi-yellow">&#128276;</div>
+            <h3>Alertas inteligentes</h3>
+            <p>Notificacoes em 50%, 75% e 90% do limite. Configuraveis, nao irritantes.</p>
+          </div>
+          <div class="feature-card" data-accent="indigo">
+            <div class="feature-icon fi-indigo">&#127793;</div>
+            <h3>Onboarding guiado</h3>
+            <p>Wizard de 3 passos no primeiro uso. Comece a usar em segundos, sem manual.</p>
+          </div>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon fi-red">&#9762;</div>
-          <h3>Nuclear Option</h3>
-          <p>Bloqueio total impossivel de burlar. Para quando voce precisa de foco absoluto.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon fi-green">&#9889;</div>
-          <h3>Modo Foco</h3>
-          <p>Selecione quais sites bloquear e por quanto tempo. Foco sob medida para o momento.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon fi-yellow">&#127942;</div>
-          <h3>Conquistas</h3>
-          <p>12 badges para desbloquear conforme voce constroi habitos melhores. Gamificacao real.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon fi-purple">&#128200;</div>
-          <h3>Historico 365 dias</h3>
-          <p>Contribution graph estilo GitHub mostrando sua atividade ao longo do ano inteiro.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon fi-cyan">&#127912;</div>
-          <h3>Tema claro/escuro</h3>
-          <p>Tema escuro por padrao, claro para quem prefere, ou automatico seguindo o sistema.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon fi-green">&#128704;</div>
-          <h3>Pausar tracking</h3>
-          <p>Pause o monitoramento por 5 a 60 minutos sem perder seu streak ou desativar nada.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon fi-yellow">&#128276;</div>
-          <h3>Alertas inteligentes</h3>
-          <p>Notificacoes em 50%, 75% e 90% do limite. Configuraveis, nao irritantes.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon fi-indigo">&#127793;</div>
-          <h3>Onboarding guiado</h3>
-          <p>Wizard de 3 passos no primeiro uso. Comece a usar em segundos, sem manual.</p>
+        <div class="carousel-controls">
+          <button class="carousel-btn" id="carouselPrev" aria-label="Anterior">&#8592;</button>
+          <div class="carousel-dots" id="carouselDots"></div>
+          <button class="carousel-btn" id="carouselNext" aria-label="Proximo">&#8594;</button>
         </div>
       </div>
     </div>
@@ -1381,6 +1542,131 @@
       bar.style.width = '0%';
       barObserver.observe(bar);
     });
+
+    // ── Feature Carousel ──
+    (() => {
+      const track = document.getElementById('carouselTrack');
+      const cards = track.querySelectorAll('.feature-card');
+      const dotsContainer = document.getElementById('carouselDots');
+      const prevBtn = document.getElementById('carouselPrev');
+      const nextBtn = document.getElementById('carouselNext');
+      const cardWidth = 320; // 300 + 20 gap
+      let currentIndex = 0;
+      let autoPlayTimer;
+      let isDragging = false;
+      let startX, scrollStart;
+
+      // Create dots
+      cards.forEach((_, i) => {
+        const dot = document.createElement('button');
+        dot.className = 'carousel-dot' + (i === 0 ? ' active' : '');
+        dot.setAttribute('aria-label', `Feature ${i + 1}`);
+        dot.addEventListener('click', () => scrollToCard(i));
+        dotsContainer.appendChild(dot);
+      });
+
+      function scrollToCard(index) {
+        currentIndex = Math.max(0, Math.min(index, cards.length - 1));
+        const target = cards[currentIndex];
+        const trackRect = track.getBoundingClientRect();
+        const cardRect = target.getBoundingClientRect();
+        const offset = cardRect.left - trackRect.left + track.scrollLeft - (trackRect.width / 2) + (cardRect.width / 2);
+        track.scrollTo({ left: offset, behavior: 'smooth' });
+        updateDots();
+      }
+
+      function updateDots() {
+        dotsContainer.querySelectorAll('.carousel-dot').forEach((dot, i) => {
+          dot.classList.toggle('active', i === currentIndex);
+        });
+      }
+
+      function findClosestCard() {
+        const trackCenter = track.scrollLeft + track.offsetWidth / 2;
+        let closest = 0;
+        let minDist = Infinity;
+        cards.forEach((card, i) => {
+          const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+          const dist = Math.abs(trackCenter - cardCenter);
+          if (dist < minDist) { minDist = dist; closest = i; }
+        });
+        return closest;
+      }
+
+      // Buttons
+      prevBtn.addEventListener('click', () => { scrollToCard(currentIndex - 1); resetAutoPlay(); });
+      nextBtn.addEventListener('click', () => { scrollToCard(currentIndex + 1); resetAutoPlay(); });
+
+      // Scroll sync dots
+      track.addEventListener('scrollend', () => {
+        if (!isDragging) {
+          currentIndex = findClosestCard();
+          updateDots();
+        }
+      });
+
+      // Drag to scroll
+      track.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.pageX;
+        scrollStart = track.scrollLeft;
+        track.style.scrollSnapType = 'none';
+        resetAutoPlay();
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        track.scrollLeft = scrollStart - (e.pageX - startX);
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        track.style.scrollSnapType = 'x mandatory';
+        currentIndex = findClosestCard();
+        scrollToCard(currentIndex);
+      });
+
+      // Mouse glow effect on cards
+      cards.forEach(card => {
+        card.addEventListener('mousemove', (e) => {
+          const rect = card.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width * 100);
+          const y = ((e.clientY - rect.top) / rect.height * 100);
+          card.style.setProperty('--mouse-x', x + '%');
+          card.style.setProperty('--mouse-y', y + '%');
+        });
+      });
+
+      // Auto-play
+      function startAutoPlay() {
+        autoPlayTimer = setInterval(() => {
+          currentIndex = (currentIndex + 1) % cards.length;
+          scrollToCard(currentIndex);
+        }, 4000);
+      }
+
+      function resetAutoPlay() {
+        clearInterval(autoPlayTimer);
+        startAutoPlay();
+      }
+
+      // Pause on hover
+      track.addEventListener('mouseenter', () => clearInterval(autoPlayTimer));
+      track.addEventListener('mouseleave', startAutoPlay);
+
+      // Keyboard
+      track.setAttribute('tabindex', '0');
+      track.setAttribute('role', 'region');
+      track.setAttribute('aria-label', 'Features carousel');
+      track.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') { scrollToCard(currentIndex + 1); resetAutoPlay(); }
+        if (e.key === 'ArrowLeft') { scrollToCard(currentIndex - 1); resetAutoPlay(); }
+      });
+
+      startAutoPlay();
+    })();
   </script>
 
 </body>
