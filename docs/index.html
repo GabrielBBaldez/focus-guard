@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focus Guard — Retome o controle do seu tempo online</title>
+  <meta name="description" content="Extensão Chrome gratuita para controlar seu tempo online com limites diários, modo foco, conquistas e mais.">
+  <meta name="theme-color" content="#0a0a0f">
+  <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/GabrielBBaldez/focus-guard/master/icons/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0f;
+      --bg-card: #111116;
+      --bg-elevated: #18181d;
+      --border: #1e1e28;
+      --border-subtle: #151520;
+      --text: #e4e4e7;
+      --text-dim: #a1a1aa;
+      --text-muted: #52525b;
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --accent-glow: rgba(99,102,241,0.15);
+      --danger: #ef4444;
+      --success: #22c55e;
+      --warning: #eab308;
+      --font-display: 'Instrument Serif', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection {
+      background: var(--accent);
+      color: white;
+    }
+
+    /* ── Noise overlay ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ── Container ── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Navigation ── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 16px 0;
+      background: rgba(10,10,15,0.8);
+      backdrop-filter: blur(20px) saturate(1.2);
+      border-bottom: 1px solid var(--border-subtle);
+      transition: all 0.3s;
+    }
+
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .nav-brand img {
+      width: 28px;
+      height: 28px;
+    }
+
+    .nav-brand span {
+      font-family: var(--font-display);
+      font-size: 20px;
+      letter-spacing: -0.5px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .btn-install {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-body);
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .btn-install:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 30px var(--accent-glow), 0 0 60px rgba(99,102,241,0.1);
+    }
+
+    .btn-install svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 180px 0 120px;
+      position: relative;
+    }
+
+    .hero-glow {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(ellipse at center, rgba(99,102,241,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: relative;
+      text-align: center;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+
+    .hero-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+      50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(48px, 7vw, 80px);
+      line-height: 1.05;
+      letter-spacing: -2px;
+      font-weight: 400;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      color: var(--accent-light);
+    }
+
+    .hero-sub {
+      font-size: 17px;
+      color: var(--text-dim);
+      max-width: 480px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: var(--font-body);
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--text-muted);
+      color: var(--text);
+    }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      padding: 48px 0;
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .stats-bar .container {
+      display: flex;
+      justify-content: center;
+      gap: 64px;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-number {
+      font-family: var(--font-display);
+      font-size: 40px;
+      letter-spacing: -1px;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 500;
+    }
+
+    /* ── Showcase (browser mockup) ── */
+    .showcase {
+      padding: 100px 0;
+    }
+
+    .browser-frame {
+      max-width: 800px;
+      margin: 0 auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg-card);
+      box-shadow:
+        0 0 0 1px var(--border-subtle),
+        0 20px 60px rgba(0,0,0,0.5),
+        0 0 120px rgba(99,102,241,0.05);
+    }
+
+    .browser-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .browser-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    .browser-dot:nth-child(1) { background: #ef4444; }
+    .browser-dot:nth-child(2) { background: #eab308; }
+    .browser-dot:nth-child(3) { background: #22c55e; }
+
+    .browser-url {
+      flex: 1;
+      margin-left: 12px;
+      padding: 6px 12px;
+      background: var(--bg);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .browser-body {
+      position: relative;
+      min-height: 400px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        linear-gradient(rgba(99,102,241,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    .popup-preview {
+      width: 360px;
+      background: var(--bg);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transform: scale(0.9);
+    }
+
+    .popup-header {
+      padding: 14px 16px;
+      background: linear-gradient(135deg, #15151e, #1a1a2e);
+      border-bottom: 1px solid #1f1f2e;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .popup-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .popup-header img {
+      width: 22px;
+      height: 22px;
+    }
+
+    .popup-header-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .popup-header-streak {
+      font-size: 11px;
+      color: var(--warning);
+    }
+
+    .popup-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .popup-tab {
+      flex: 1;
+      text-align: center;
+      padding: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: default;
+      border-bottom: 2px solid transparent;
+    }
+
+    .popup-tab.active {
+      color: var(--accent-light);
+      border-bottom-color: var(--accent);
+    }
+
+    .popup-site-list {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .popup-site {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .popup-site-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .popup-site-bar {
+      width: 80px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .popup-site-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 1.5s ease;
+    }
+
+    .fill-green { background: var(--success); width: 35%; }
+    .fill-yellow { background: var(--warning); width: 72%; }
+    .fill-red { background: var(--danger); width: 95%; }
+
+    /* ── Features ── */
+    .features {
+      padding: 100px 0;
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-light);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(32px, 4vw, 48px);
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+
+    .section-sub {
+      font-size: 16px;
+      color: var(--text-dim);
+      max-width: 500px;
+      margin-bottom: 64px;
+    }
+
+    /* ── Carousel ── */
+    .carousel-wrapper {
+      position: relative;
+      margin: 0 -24px;
+      padding: 0 24px;
+    }
+
+    .carousel-wrapper::before,
+    .carousel-wrapper::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 80px;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .carousel-wrapper::before {
+      left: 0;
+      background: linear-gradient(90deg, var(--bg), transparent);
+    }
+
+    .carousel-wrapper::after {
+      right: 0;
+      background: linear-gradient(-90deg, var(--bg), transparent);
+    }
+
+    .carousel-track {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px 40px 32px;
+      cursor: grab;
+      scrollbar-width: none;
+    }
+
+    .carousel-track::-webkit-scrollbar { display: none; }
+    .carousel-track:active { cursor: grabbing; }
+
+    .feature-card {
+      flex: 0 0 300px;
+      scroll-snap-align: center;
+      background: rgba(17,17,22,0.6);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 28px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94),
+                  border-color 0.4s,
+                  box-shadow 0.4s;
+      will-change: transform;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent)), transparent);
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    .feature-card::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+        var(--card-glow, rgba(99,102,241,0.06)) 0%, transparent 60%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-6px) scale(1.02);
+      border-color: var(--card-accent, rgba(99,102,241,0.3));
+      box-shadow:
+        0 8px 32px rgba(0,0,0,0.3),
+        0 0 48px var(--card-glow, rgba(99,102,241,0.08));
+    }
+
+    .feature-card:hover::before { opacity: 1; }
+    .feature-card:hover::after { opacity: 1; }
+
+    /* Per-card accent colors */
+    .feature-card[data-accent="indigo"] {
+      --card-accent: #6366f1;
+      --card-glow: rgba(99,102,241,0.08);
+    }
+    .feature-card[data-accent="red"] {
+      --card-accent: #ef4444;
+      --card-glow: rgba(239,68,68,0.08);
+    }
+    .feature-card[data-accent="green"] {
+      --card-accent: #22c55e;
+      --card-glow: rgba(34,197,94,0.08);
+    }
+    .feature-card[data-accent="yellow"] {
+      --card-accent: #eab308;
+      --card-glow: rgba(234,179,8,0.08);
+    }
+    .feature-card[data-accent="purple"] {
+      --card-accent: #a78bfa;
+      --card-glow: rgba(167,139,250,0.08);
+    }
+    .feature-card[data-accent="cyan"] {
+      --card-accent: #22d3ee;
+      --card-glow: rgba(34,211,238,0.08);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      font-size: 22px;
+      position: relative;
+    }
+
+    .fi-indigo { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); }
+    .fi-red { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); }
+    .fi-green { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); }
+    .fi-yellow { background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.2); }
+    .fi-purple { background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2); }
+    .fi-cyan { background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.2); }
+
+    .feature-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* Carousel controls */
+    .carousel-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 32px;
+    }
+
+    .carousel-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-dim);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      font-size: 18px;
+    }
+
+    .carousel-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent-light);
+      background: rgba(99,102,241,0.06);
+    }
+
+    .carousel-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .carousel-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+      padding: 0;
+    }
+
+    .carousel-dot.active {
+      background: var(--accent);
+      width: 24px;
+      border-radius: 4px;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    /* ── How it works ── */
+    .how {
+      padding: 100px 0;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 48px;
+      margin-top: 64px;
+    }
+
+    .step {
+      position: relative;
+    }
+
+    .step-number {
+      font-family: var(--font-display);
+      font-size: 64px;
+      color: var(--border);
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+
+    .step h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .step p {
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.7;
+    }
+
+    .step-arrow {
+      position: absolute;
+      right: -32px;
+      top: 40px;
+      color: var(--border);
+      font-size: 24px;
+    }
+
+    /* ── Blocked page preview ── */
+    .blocked-preview {
+      padding: 100px 0;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .blocked-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+
+    .blocked-text h2 {
+      font-family: var(--font-display);
+      font-size: 40px;
+      letter-spacing: -1px;
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+
+    .blocked-text h2 em {
+      color: var(--danger);
+      font-style: italic;
+    }
+
+    .blocked-text p {
+      font-size: 15px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .feature-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+
+    .feature-list .check {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--success);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .blocked-mockup {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .blocked-mockup::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(rgba(99,102,241,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: gridDrift 25s linear infinite;
+    }
+
+    @keyframes gridDrift {
+      to { transform: translate(40px, 40px); }
+    }
+
+    .blocked-mockup-content {
+      position: relative;
+    }
+
+    .blocked-mockup img {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 0 20px rgba(99,102,241,0.3));
+      animation: mockFloat 4s ease-in-out infinite;
+    }
+
+    @keyframes mockFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .blocked-mockup h3 {
+      font-family: var(--font-display);
+      font-size: 22px;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--text), var(--text-dim));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .blocked-mockup-site {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(99,102,241,0.08);
+      border: 1px solid rgba(99,102,241,0.15);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--accent-light);
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .blocked-stats {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .blocked-stat-val {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .blocked-stat-val.over { color: var(--danger); }
+
+    .blocked-stat-lbl {
+      font-size: 9px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-top: 2px;
+    }
+
+    .blocked-quote {
+      font-style: italic;
+      color: var(--text-muted);
+      font-size: 12px;
+      border-left: 2px solid var(--accent);
+      padding-left: 12px;
+      text-align: left;
+      max-width: 300px;
+      margin: 0 auto;
+    }
+
+    /* ── Achievements ── */
+    .achievements {
+      padding: 100px 0;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .achievements-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+
+    .badge-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .badge-item {
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      gap: 6px;
+      transition: all 0.3s;
+    }
+
+    .badge-item:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .badge-item.locked {
+      opacity: 0.35;
+      filter: grayscale(1);
+    }
+
+    .badge-emoji {
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .badge-name {
+      font-size: 9px;
+      color: var(--text-muted);
+      text-align: center;
+      font-weight: 500;
+      padding: 0 4px;
+    }
+
+    /* ── Privacy ── */
+    .privacy-section {
+      padding: 80px 0;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .privacy-card {
+      max-width: 700px;
+      margin: 0 auto;
+      text-align: center;
+      padding: 48px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .privacy-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--success), transparent);
+    }
+
+    .privacy-icon {
+      font-size: 32px;
+      margin-bottom: 16px;
+    }
+
+    .privacy-card h3 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
+    .privacy-card p {
+      font-size: 15px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .privacy-badges {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .privacy-badge {
+      padding: 6px 14px;
+      background: rgba(34,197,94,0.06);
+      border: 1px solid rgba(34,197,94,0.15);
+      border-radius: 100px;
+      font-size: 12px;
+      color: var(--success);
+      font-weight: 500;
+    }
+
+    /* ── CTA ── */
+    .cta {
+      padding: 120px 0;
+      text-align: center;
+      position: relative;
+    }
+
+    .cta-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 500px;
+      height: 300px;
+      background: radial-gradient(ellipse, rgba(99,102,241,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta h2 {
+      font-family: var(--font-display);
+      font-size: clamp(36px, 5vw, 56px);
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .cta p {
+      font-size: 16px;
+      color: var(--text-dim);
+      margin-bottom: 36px;
+      position: relative;
+    }
+
+    .cta .hero-actions { position: relative; }
+
+    .cta-note {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      position: relative;
+    }
+
+    /* ── Footer ── */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .footer-left img {
+      width: 18px;
+      height: 18px;
+      opacity: 0.5;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--text); }
+
+    /* ── Animations ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+
+      .hero { padding: 140px 0 80px; }
+
+      .stats-bar .container { gap: 32px; flex-wrap: wrap; }
+
+      .feature-card { flex: 0 0 260px; }
+
+      .steps { grid-template-columns: 1fr; gap: 32px; }
+      .step-arrow { display: none; }
+
+      .blocked-split,
+      .achievements-split {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+
+      .badge-grid { grid-template-columns: repeat(4, 1fr); }
+
+      .hero-actions {
+        flex-direction: column;
+      }
+
+      .popup-preview { width: 280px; }
+
+      .privacy-badges { flex-wrap: wrap; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav>
+    <div class="container">
+      <a href="#" class="nav-brand">
+        <img src="https://raw.githubusercontent.com/GabrielBBaldez/focus-guard/master/icons/logo.png" alt="">
+        <span>Focus Guard</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how">Como funciona</a></li>
+        <li><a href="#privacy">Privacidade</a></li>
+        <li>
+          <a href="https://chromewebstore.google.com" class="btn-install" id="ctaInstall">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Instalar gratis
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <div class="container">
+      <div class="hero-content reveal">
+        <div class="hero-badge">
+          <span class="dot"></span>
+          v3.0 — Chrome Web Store
+        </div>
+        <h1>Retome o <em>controle</em> do seu tempo online</h1>
+        <p class="hero-sub">
+          Defina limites diarios para sites que roubam sua atencao.
+          Modo foco, conquistas, historico de 365 dias — tudo gratuito, tudo local.
+        </p>
+        <div class="hero-actions">
+          <a href="https://chromewebstore.google.com" class="btn-install">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Instalar no Chrome
+          </a>
+          <a href="#features" class="btn-secondary">Ver features</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <section class="stats-bar">
+    <div class="container">
+      <div class="stat-item reveal">
+        <div class="stat-number" data-count="12">12</div>
+        <div class="stat-label">Conquistas</div>
+      </div>
+      <div class="stat-item reveal reveal-delay-1">
+        <div class="stat-number">365</div>
+        <div class="stat-label">Dias de historico</div>
+      </div>
+      <div class="stat-item reveal reveal-delay-2">
+        <div class="stat-number">100%</div>
+        <div class="stat-label">Local & privado</div>
+      </div>
+      <div class="stat-item reveal reveal-delay-3">
+        <div class="stat-number">0</div>
+        <div class="stat-label">Dados coletados</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Showcase -->
+  <section class="showcase">
+    <div class="container">
+      <div class="browser-frame reveal">
+        <div class="browser-bar">
+          <div class="browser-dot"></div>
+          <div class="browser-dot"></div>
+          <div class="browser-dot"></div>
+          <div class="browser-url">chrome-extension://focus-guard/popup.html</div>
+        </div>
+        <div class="browser-body">
+          <div class="popup-preview">
+            <div class="popup-header">
+              <div class="popup-header-left">
+                <img src="https://raw.githubusercontent.com/GabrielBBaldez/focus-guard/master/icons/logo.png" alt="">
+                <span class="popup-header-title">Focus Guard</span>
+              </div>
+              <span class="popup-header-streak">3 dias</span>
+            </div>
+            <div class="popup-tabs">
+              <div class="popup-tab active">Sites</div>
+              <div class="popup-tab">History</div>
+              <div class="popup-tab">Settings</div>
+            </div>
+            <div class="popup-site-list">
+              <div class="popup-site">
+                <span class="popup-site-name">youtube.com</span>
+                <div style="text-align: right">
+                  <div class="popup-site-bar"><div class="popup-site-fill fill-green"></div></div>
+                  <div style="font-size:10px;color:var(--text-muted);margin-top:3px">21min / 60min</div>
+                </div>
+              </div>
+              <div class="popup-site">
+                <span class="popup-site-name">twitter.com</span>
+                <div style="text-align: right">
+                  <div class="popup-site-bar"><div class="popup-site-fill fill-yellow"></div></div>
+                  <div style="font-size:10px;color:var(--warning);margin-top:3px">43min / 60min</div>
+                </div>
+              </div>
+              <div class="popup-site">
+                <span class="popup-site-name">reddit.com</span>
+                <div style="text-align: right">
+                  <div class="popup-site-bar"><div class="popup-site-fill fill-red"></div></div>
+                  <div style="font-size:10px;color:var(--danger);margin-top:3px">57min / 60min</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-label reveal">Features</div>
+      <h2 class="section-title reveal">Tudo que voce precisa<br>para manter o foco</h2>
+      <p class="section-sub reveal">Ferramentas poderosas com uma interface limpa. Sem complicacao.</p>
+
+      <div class="carousel-wrapper reveal">
+        <div class="carousel-track" id="carouselTrack">
+          <div class="feature-card" data-accent="indigo">
+            <div class="feature-icon fi-indigo">&#9201;</div>
+            <h3>Limites diarios</h3>
+            <p>Defina quanto tempo pode gastar em cada site por dia. Limites semanais opcionais.</p>
+          </div>
+          <div class="feature-card" data-accent="red">
+            <div class="feature-icon fi-red">&#9762;</div>
+            <h3>Nuclear Option</h3>
+            <p>Bloqueio total impossivel de burlar. Para quando voce precisa de foco absoluto.</p>
+          </div>
+          <div class="feature-card" data-accent="green">
+            <div class="feature-icon fi-green">&#9889;</div>
+            <h3>Modo Foco</h3>
+            <p>Selecione quais sites bloquear e por quanto tempo. Foco sob medida para o momento.</p>
+          </div>
+          <div class="feature-card" data-accent="yellow">
+            <div class="feature-icon fi-yellow">&#127942;</div>
+            <h3>Conquistas</h3>
+            <p>12 badges para desbloquear conforme voce constroi habitos melhores. Gamificacao real.</p>
+          </div>
+          <div class="feature-card" data-accent="purple">
+            <div class="feature-icon fi-purple">&#128200;</div>
+            <h3>Historico 365 dias</h3>
+            <p>Contribution graph estilo GitHub mostrando sua atividade ao longo do ano inteiro.</p>
+          </div>
+          <div class="feature-card" data-accent="cyan">
+            <div class="feature-icon fi-cyan">&#127912;</div>
+            <h3>Tema claro/escuro</h3>
+            <p>Tema escuro por padrao, claro para quem prefere, ou automatico seguindo o sistema.</p>
+          </div>
+          <div class="feature-card" data-accent="green">
+            <div class="feature-icon fi-green">&#128704;</div>
+            <h3>Pausar tracking</h3>
+            <p>Pause o monitoramento por 5 a 60 minutos sem perder seu streak ou desativar nada.</p>
+          </div>
+          <div class="feature-card" data-accent="yellow">
+            <div class="feature-icon fi-yellow">&#128276;</div>
+            <h3>Alertas inteligentes</h3>
+            <p>Notificacoes em 50%, 75% e 90% do limite. Configuraveis, nao irritantes.</p>
+          </div>
+          <div class="feature-card" data-accent="indigo">
+            <div class="feature-icon fi-indigo">&#127793;</div>
+            <h3>Onboarding guiado</h3>
+            <p>Wizard de 3 passos no primeiro uso. Comece a usar em segundos, sem manual.</p>
+          </div>
+          <div class="feature-card" data-accent="red">
+            <div class="feature-icon fi-red">&#9940;</div>
+            <h3>Filtro YouTube</h3>
+            <p>Oculte Shorts e comentarios do YouTube. Links de Shorts redirecionam para o player normal.</p>
+          </div>
+        </div>
+        <div class="carousel-controls">
+          <button class="carousel-btn" id="carouselPrev" aria-label="Anterior">&#8592;</button>
+          <div class="carousel-dots" id="carouselDots"></div>
+          <button class="carousel-btn" id="carouselNext" aria-label="Proximo">&#8594;</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="how" id="how">
+    <div class="container">
+      <div class="section-label reveal">Como funciona</div>
+      <h2 class="section-title reveal">3 passos e pronto</h2>
+
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-number">01</div>
+          <h3>Instale a extensao</h3>
+          <p>Um clique na Chrome Web Store. Sem cadastro, sem login, sem conta — funciona instantaneamente.</p>
+          <span class="step-arrow">&rarr;</span>
+        </div>
+        <div class="step reveal reveal-delay-1">
+          <div class="step-number">02</div>
+          <h3>Adicione seus sites</h3>
+          <p>Escolha os sites que mais consomem seu tempo e defina limites diarios para cada um.</p>
+          <span class="step-arrow">&rarr;</span>
+        </div>
+        <div class="step reveal reveal-delay-2">
+          <div class="step-number">03</div>
+          <h3>Foque no que importa</h3>
+          <p>O Focus Guard monitora e bloqueia automaticamente. Acompanhe seu progresso, desbloqueie conquistas.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Blocked page preview -->
+  <section class="blocked-preview">
+    <div class="container">
+      <div class="blocked-split">
+        <div class="blocked-text reveal">
+          <div class="section-label">Pagina de bloqueio</div>
+          <h2>Quando o limite chega, voce <em>para</em></h2>
+          <p>
+            Uma pagina elegante substitui o site bloqueado com suas estatisticas,
+            uma frase motivacional, e ferramentas para manter o foco.
+          </p>
+          <ul class="feature-list">
+            <li><span class="check">&#10003;</span> Exercicio de respiracao guiado (4-4-4)</li>
+            <li><span class="check">&#10003;</span> Timer Pomodoro integrado</li>
+            <li><span class="check">&#10003;</span> Desafio de digitacao para desbloquear</li>
+            <li><span class="check">&#10003;</span> Opcao de +5 minutos extras (com limite)</li>
+            <li><span class="check">&#10003;</span> Frases motivacionais aleatorias</li>
+          </ul>
+        </div>
+        <div class="blocked-mockup reveal reveal-delay-1">
+          <div class="blocked-mockup-content">
+            <img src="https://raw.githubusercontent.com/GabrielBBaldez/focus-guard/master/icons/logo.png" alt="">
+            <h3>Tempo esgotado!</h3>
+            <div class="blocked-mockup-site">youtube.com</div>
+            <div class="blocked-stats">
+              <div>
+                <div class="blocked-stat-val over">1h 05m</div>
+                <div class="blocked-stat-lbl">Usado</div>
+              </div>
+              <div>
+                <div class="blocked-stat-val">1h 00m</div>
+                <div class="blocked-stat-lbl">Limite</div>
+              </div>
+              <div>
+                <div class="blocked-stat-val">2h 30m</div>
+                <div class="blocked-stat-lbl">Total hoje</div>
+              </div>
+            </div>
+            <div class="blocked-quote">"A disciplina e a ponte entre metas e conquistas." — Jim Rohn</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Achievements -->
+  <section class="achievements">
+    <div class="container">
+      <div class="achievements-split">
+        <div class="badge-grid reveal">
+          <div class="badge-item"><span class="badge-emoji">&#128737;&#65039;</span><span class="badge-name">Primeiro Limite</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#9997;&#65039;</span><span class="badge-name">Desafio Aceito</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#9762;&#65039;</span><span class="badge-name">Botao Vermelho</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#128293;</span><span class="badge-name">Foco Iniciante</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#11088;</span><span class="badge-name">Semana Perfeita</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#128142;</span><span class="badge-name">Mes de Ferro</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#127984;</span><span class="badge-name">Guardiao</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#9889;</span><span class="badge-name">Modo Foco x10</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#129496;</span><span class="badge-name">Respiracao Zen</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#127813;</span><span class="badge-name">Pomodoro Master</span></div>
+          <div class="badge-item"><span class="badge-emoji">&#128170;</span><span class="badge-name">Sem Atalhos</span></div>
+          <div class="badge-item locked"><span class="badge-emoji">&#127894;&#65039;</span><span class="badge-name">???</span></div>
+        </div>
+        <div class="reveal reveal-delay-1">
+          <div class="section-label">Conquistas</div>
+          <h2 class="section-title" style="font-size:36px">Desbloqueie <em style="color:var(--warning);font-family:var(--font-display)">12 badges</em> enquanto constroi disciplina</h2>
+          <p class="section-sub" style="margin-bottom:24px">
+            Streaks, desafios completados, sessoes de foco — cada marco que voce alcanca vira uma conquista.
+            Gamificacao que motiva sem ser infantil.
+          </p>
+          <ul class="feature-list">
+            <li><span class="check">&#10003;</span> Notificacao ao desbloquear</li>
+            <li><span class="check">&#10003;</span> Progresso visivel no popup</li>
+            <li><span class="check">&#10003;</span> Desbloqueie todas para virar veterano</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Privacy -->
+  <section class="privacy-section" id="privacy">
+    <div class="container">
+      <div class="privacy-card reveal">
+        <div class="privacy-icon">&#128274;</div>
+        <h3>Sua privacidade e inegociavel</h3>
+        <p>
+          Zero dados coletados. Zero servidores. Zero rastreamento.
+          Tudo fica salvo localmente no seu navegador usando chrome.storage.local.
+          Nos nao sabemos nem que voce instalou a extensao.
+        </p>
+        <div class="privacy-badges">
+          <span class="privacy-badge">100% offline</span>
+          <span class="privacy-badge">Sem analytics</span>
+          <span class="privacy-badge">Sem conta</span>
+          <span class="privacy-badge">Codigo aberto</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <div class="cta-glow"></div>
+    <div class="container">
+      <h2 class="reveal">Pronto para parar de<br>perder tempo?</h2>
+      <p class="reveal">Gratis, privado, sem pegadinhas. Instale e comece agora.</p>
+      <div class="hero-actions reveal">
+        <a href="https://chromewebstore.google.com" class="btn-install">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Instalar Focus Guard
+        </a>
+        <a href="https://github.com/GabrielBBaldez/focus-guard" class="btn-secondary">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style="width:16px;height:16px"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          Ver codigo
+        </a>
+      </div>
+      <p class="cta-note reveal">Compativel com Chrome, Edge, Brave e outros navegadores Chromium</p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-left">
+        <img src="https://raw.githubusercontent.com/GabrielBBaldez/focus-guard/master/icons/logo.png" alt="">
+        <span>Focus Guard &copy; 2025</span>
+      </div>
+      <ul class="footer-links">
+        <li><a href="https://github.com/GabrielBBaldez/focus-guard">GitHub</a></li>
+        <li><a href="https://github.com/GabrielBBaldez/focus-guard/blob/master/PRIVACY.md">Privacidade</a></li>
+        <li><a href="https://chromewebstore.google.com">Chrome Web Store</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <script>
+    // Scroll reveal
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    reveals.forEach(el => observer.observe(el));
+
+    // Smooth nav shadow on scroll
+    const nav = document.querySelector('nav');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 20) {
+        nav.style.borderBottomColor = 'rgba(30,30,40,0.8)';
+        nav.style.boxShadow = '0 4px 30px rgba(0,0,0,0.3)';
+      } else {
+        nav.style.borderBottomColor = 'var(--border-subtle)';
+        nav.style.boxShadow = 'none';
+      }
+    });
+
+    // Animated progress bars on scroll
+    const bars = document.querySelectorAll('.popup-site-fill');
+    const barObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.width = entry.target.classList.contains('fill-green') ? '35%' :
+                                     entry.target.classList.contains('fill-yellow') ? '72%' : '95%';
+        }
+      });
+    }, { threshold: 0.5 });
+
+    bars.forEach(bar => {
+      bar.style.width = '0%';
+      barObserver.observe(bar);
+    });
+
+    // ── Feature Carousel ──
+    (() => {
+      const track = document.getElementById('carouselTrack');
+      const cards = track.querySelectorAll('.feature-card');
+      const dotsContainer = document.getElementById('carouselDots');
+      const prevBtn = document.getElementById('carouselPrev');
+      const nextBtn = document.getElementById('carouselNext');
+      const cardWidth = 320; // 300 + 20 gap
+      let currentIndex = 0;
+      let autoPlayTimer;
+      let isDragging = false;
+      let startX, scrollStart;
+
+      // Create dots
+      cards.forEach((_, i) => {
+        const dot = document.createElement('button');
+        dot.className = 'carousel-dot' + (i === 0 ? ' active' : '');
+        dot.setAttribute('aria-label', `Feature ${i + 1}`);
+        dot.addEventListener('click', () => scrollToCard(i));
+        dotsContainer.appendChild(dot);
+      });
+
+      function scrollToCard(index) {
+        currentIndex = Math.max(0, Math.min(index, cards.length - 1));
+        const target = cards[currentIndex];
+        const trackRect = track.getBoundingClientRect();
+        const cardRect = target.getBoundingClientRect();
+        const offset = cardRect.left - trackRect.left + track.scrollLeft - (trackRect.width / 2) + (cardRect.width / 2);
+        track.scrollTo({ left: offset, behavior: 'smooth' });
+        updateDots();
+      }
+
+      function updateDots() {
+        dotsContainer.querySelectorAll('.carousel-dot').forEach((dot, i) => {
+          dot.classList.toggle('active', i === currentIndex);
+        });
+      }
+
+      function findClosestCard() {
+        const trackCenter = track.scrollLeft + track.offsetWidth / 2;
+        let closest = 0;
+        let minDist = Infinity;
+        cards.forEach((card, i) => {
+          const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+          const dist = Math.abs(trackCenter - cardCenter);
+          if (dist < minDist) { minDist = dist; closest = i; }
+        });
+        return closest;
+      }
+
+      // Buttons
+      prevBtn.addEventListener('click', () => { scrollToCard(currentIndex - 1); resetAutoPlay(); });
+      nextBtn.addEventListener('click', () => { scrollToCard(currentIndex + 1); resetAutoPlay(); });
+
+      // Scroll sync dots
+      track.addEventListener('scrollend', () => {
+        if (!isDragging) {
+          currentIndex = findClosestCard();
+          updateDots();
+        }
+      });
+
+      // Drag to scroll
+      track.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.pageX;
+        scrollStart = track.scrollLeft;
+        track.style.scrollSnapType = 'none';
+        resetAutoPlay();
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        track.scrollLeft = scrollStart - (e.pageX - startX);
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        track.style.scrollSnapType = 'x mandatory';
+        currentIndex = findClosestCard();
+        scrollToCard(currentIndex);
+      });
+
+      // Mouse glow effect on cards
+      cards.forEach(card => {
+        card.addEventListener('mousemove', (e) => {
+          const rect = card.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width * 100);
+          const y = ((e.clientY - rect.top) / rect.height * 100);
+          card.style.setProperty('--mouse-x', x + '%');
+          card.style.setProperty('--mouse-y', y + '%');
+        });
+      });
+
+      // Auto-play
+      function startAutoPlay() {
+        autoPlayTimer = setInterval(() => {
+          currentIndex = (currentIndex + 1) % cards.length;
+          scrollToCard(currentIndex);
+        }, 4000);
+      }
+
+      function resetAutoPlay() {
+        clearInterval(autoPlayTimer);
+        startAutoPlay();
+      }
+
+      // Pause on hover
+      track.addEventListener('mouseenter', () => clearInterval(autoPlayTimer));
+      track.addEventListener('mouseleave', startAutoPlay);
+
+      // Keyboard
+      track.setAttribute('tabindex', '0');
+      track.setAttribute('role', 'region');
+      track.setAttribute('aria-label', 'Features carousel');
+      track.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') { scrollToCard(currentIndex + 1); resetAutoPlay(); }
+        if (e.key === 'ArrowLeft') { scrollToCard(currentIndex - 1); resetAutoPlay(); }
+      });
+
+      startAutoPlay();
+    })();
+  </script>
+
+</body>
+</html>
