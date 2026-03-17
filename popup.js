@@ -13,7 +13,8 @@ const STORAGE_KEYS = {
   HIDE_COMMENTS: 'focusGuard_hideComments',
   WEEKLY_LIMITS: 'focusGuard_weeklyLimits',
   EXTRA_TIME_MIN: 'focusGuard_extraTimeMin',
-  ENTRY_CHALLENGE: 'focusGuard_entryChallenge'
+  ENTRY_CHALLENGE: 'focusGuard_entryChallenge',
+  THEME: 'focusGuard_theme'
 };
 
 // ── DOM Elements ──
@@ -47,10 +48,71 @@ const hideCommentsToggle = document.getElementById('hideCommentsToggle');
 const btnNuclear = document.getElementById('btnNuclear');
 const nuclearHoursInput = document.getElementById('nuclearHours');
 
+// Theme
+const themeSelect = document.getElementById('themeSelect');
+
 // History
 const historyPanel = document.getElementById('historyPanel');
 const sparklinesSection = document.getElementById('sparklinesSection');
 const sparklinesGrid = document.getElementById('sparklinesGrid');
+
+// ── Theme System ──
+
+function applyTheme(theme) {
+  var resolved = theme;
+  if (theme === 'system') {
+    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  var html = document.documentElement;
+  html.classList.remove('theme-dark', 'theme-light');
+  html.classList.add('theme-' + resolved);
+
+  // Update color-scheme meta
+  var metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+  if (metaColorScheme) {
+    metaColorScheme.setAttribute('content', resolved);
+  }
+
+  // Handle darkreader-lock meta
+  var metaDarkReader = document.querySelector('meta[name="darkreader-lock"]');
+  if (resolved === 'dark') {
+    if (!metaDarkReader) {
+      metaDarkReader = document.createElement('meta');
+      metaDarkReader.setAttribute('name', 'darkreader-lock');
+      document.head.appendChild(metaDarkReader);
+    }
+  } else {
+    if (metaDarkReader) {
+      metaDarkReader.remove();
+    }
+  }
+}
+
+// Load theme from storage
+chrome.storage.local.get(STORAGE_KEYS.THEME, function(data) {
+  var theme = data[STORAGE_KEYS.THEME] || DEFAULTS.THEME;
+  themeSelect.value = theme;
+  applyTheme(theme);
+});
+
+// Theme selector change
+themeSelect.addEventListener('change', function() {
+  var theme = themeSelect.value;
+  var obj = {};
+  obj[STORAGE_KEYS.THEME] = theme;
+  chrome.storage.local.set(obj);
+  applyTheme(theme);
+});
+
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+  chrome.storage.local.get(STORAGE_KEYS.THEME, function(data) {
+    var theme = data[STORAGE_KEYS.THEME] || DEFAULTS.THEME;
+    if (theme === 'system') {
+      applyTheme('system');
+    }
+  });
+});
 
 // ── Helpers ──
 

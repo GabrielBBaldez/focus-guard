@@ -17,7 +17,8 @@ const STORAGE_KEYS = {
   WEEKLY_LIMITS: 'focusGuard_weeklyLimits', // { pattern: limitMinutes }
   EXTRA_TIME_MIN: 'focusGuard_extraTimeMin', // number (default 5)
   ENTRY_CHALLENGE: 'focusGuard_entryChallenge', // { enabled: boolean }
-  ENTRY_PASSED: 'focusGuard_entryPassed' // { pattern: timestamp } - entry challenges passed today
+  ENTRY_PASSED: 'focusGuard_entryPassed', // { pattern: timestamp } - entry challenges passed today
+  THEME: 'focusGuard_theme' // 'dark' | 'light' | 'system'
 };
 
 let activeTabId = null;

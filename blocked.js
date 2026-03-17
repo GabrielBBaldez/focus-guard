@@ -9,6 +9,54 @@ var isWeeklyBlock = params.get('reason') === 'weekly';
 var siteIsValid = false; // will be validated against storage
 var configuredExtraMin = 5; // will be loaded from storage
 
+// ── Theme System ──
+
+function applyTheme(theme) {
+  var resolved = theme;
+  if (theme === 'system') {
+    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  var html = document.documentElement;
+  html.classList.remove('theme-dark', 'theme-light');
+  html.classList.add('theme-' + resolved);
+
+  // Update color-scheme meta
+  var metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+  if (metaColorScheme) {
+    metaColorScheme.setAttribute('content', resolved);
+  }
+
+  // Handle darkreader-lock meta
+  var metaDarkReader = document.querySelector('meta[name="darkreader-lock"]');
+  if (resolved === 'dark') {
+    if (!metaDarkReader) {
+      metaDarkReader = document.createElement('meta');
+      metaDarkReader.setAttribute('name', 'darkreader-lock');
+      document.head.appendChild(metaDarkReader);
+    }
+  } else {
+    if (metaDarkReader) {
+      metaDarkReader.remove();
+    }
+  }
+}
+
+// Load theme from storage
+chrome.storage.local.get('focusGuard_theme', function(data) {
+  var theme = data['focusGuard_theme'] || DEFAULTS.THEME;
+  applyTheme(theme);
+});
+
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+  chrome.storage.local.get('focusGuard_theme', function(data) {
+    var theme = data['focusGuard_theme'] || DEFAULTS.THEME;
+    if (theme === 'system') {
+      applyTheme('system');
+    }
+  });
+});
+
 // ── Toast Notifications ──
 function showToast(message, type) {
   type = type || 'info';
