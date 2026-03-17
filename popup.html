@@ -484,6 +484,7 @@
     .badge-bypassed { background: var(--success-alt); color: #fff; }
     .badge-scheduled { background: var(--accent); color: #fff; }
     .badge-nuclear { background: var(--danger-bg-start); color: var(--danger-text); }
+    .badge-focus { background: var(--accent-alpha-15); color: var(--accent-light); }
 
     .site-meta {
       font-size: 10px; color: var(--text-secondary); margin-top: 3px;
@@ -1635,6 +1636,34 @@
       <div class="onboarding-dot active" data-dot="1"></div>
       <div class="onboarding-dot" data-dot="2"></div>
       <div class="onboarding-dot" data-dot="3"></div>
+    </div>
+  </div>
+
+  <!-- Focus Mode Modal -->
+  <div class="focus-modal-overlay" id="focusModalOverlay">
+    <div class="focus-modal">
+      <div class="focus-modal-title">&#9889; Modo Foco</div>
+      <div class="focus-modal-section">
+        <div class="focus-modal-label">Sites para bloquear</div>
+        <div class="focus-sites-list" id="focusSitesList"></div>
+      </div>
+      <div class="focus-modal-section">
+        <div class="focus-modal-label">Duração</div>
+        <div class="focus-duration-btns" id="focusDurationBtns">
+          <button class="focus-dur-btn" data-min="15">15min</button>
+          <button class="focus-dur-btn active" data-min="30">30min</button>
+          <button class="focus-dur-btn" data-min="60">1h</button>
+          <button class="focus-dur-btn" data-min="120">2h</button>
+        </div>
+        <div class="focus-custom-row">
+          <input type="number" id="focusCustomMin" min="5" max="480" placeholder="--">
+          <span>min (5–480)</span>
+        </div>
+      </div>
+      <div class="focus-modal-actions">
+        <button class="focus-btn-cancel" id="focusBtnCancel">Cancelar</button>
+        <button class="focus-btn-start" id="focusBtnStart">Iniciar Foco</button>
+      </div>
     </div>
   </div>
 

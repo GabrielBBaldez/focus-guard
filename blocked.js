@@ -48,6 +48,7 @@ var rawSite = params.get('site') || 'este site';
 // Sanitize: remove anything after first space/newline, keep only domain+path chars
 var site = rawSite.replace(/[\s<>"'`]/g, '').split('#')[0].split('?')[0].toLowerCase();
 var isNuclear = params.get('nuclear') === '1';
+var isFocusMode = params.get('focus') === '1';
 var isEntryMode = params.get('entry') === '1';
 var isWeeklyBlock = params.get('reason') === 'weekly';
 var siteIsValid = false; // will be validated against storage
@@ -137,6 +138,34 @@ if (isNuclear) {
   document.getElementById('bypassSection').classList.add('hidden');
 }
 
+// ── Focus Mode ──
+if (isFocusMode) {
+  document.getElementById('mainContainer').classList.add('nuclear-mode');
+  document.getElementById('bypassSection').classList.add('hidden');
+  document.querySelector('h1').textContent = 'Modo Foco ativo';
+  document.querySelector('.message').innerHTML =
+    'Este site está bloqueado durante o <strong>Modo Foco</strong>.<br>' +
+    '<strong>Concentre-se no que importa.</strong>';
+  // Apply accent/indigo tones instead of danger/red
+  var nuclearAlert = document.querySelector('.nuclear-alert');
+  if (nuclearAlert) {
+    nuclearAlert.style.background = 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.25))';
+    nuclearAlert.style.borderColor = 'var(--accent-alpha-30)';
+  }
+  var alertIcon = document.querySelector('.nuclear-alert-icon');
+  if (alertIcon) alertIcon.textContent = '\u26A1';
+  var alertText = document.querySelector('.nuclear-alert-text');
+  if (alertText) {
+    alertText.textContent = 'MODO FOCO ATIVO';
+    alertText.style.color = 'var(--accent-light)';
+  }
+  var alertTime = document.querySelector('.nuclear-alert-time');
+  if (alertTime) alertTime.style.color = 'var(--accent-light)';
+  // Change logo glow to indigo instead of red
+  var logo = document.querySelector('.logo');
+  if (logo) logo.style.filter = 'drop-shadow(0 0 20px rgba(99,102,241,0.6))';
+}
+
 // Check nuclear status from background
 chrome.runtime.sendMessage({ type: 'getNuclearStatus' }, function(response) {
   if (chrome.runtime.lastError || !response) return;
@@ -145,9 +174,31 @@ chrome.runtime.sendMessage({ type: 'getNuclearStatus' }, function(response) {
     var until = new Date(response.until);
     var h = until.getHours().toString().padStart(2, '0');
     var m = until.getMinutes().toString().padStart(2, '0');
-    document.getElementById('nuclearAlertTime').textContent = 'Sites bloqueados até ' + h + ':' + m;
 
-    // Hide bypass buttons during nuclear
+    if (response.mode === 'focus') {
+      document.querySelector('h1').textContent = 'Modo Foco ativo';
+      document.getElementById('nuclearAlertTime').textContent = 'Sites bloqueados até ' + h + ':' + m;
+      var alertText = document.querySelector('.nuclear-alert-text');
+      if (alertText) {
+        alertText.textContent = 'MODO FOCO ATIVO';
+        alertText.style.color = 'var(--accent-light)';
+      }
+      var alertTime = document.querySelector('.nuclear-alert-time');
+      if (alertTime) alertTime.style.color = 'var(--accent-light)';
+      var nuclearAlert = document.querySelector('.nuclear-alert');
+      if (nuclearAlert) {
+        nuclearAlert.style.background = 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.25))';
+        nuclearAlert.style.borderColor = 'var(--accent-alpha-30)';
+      }
+      var alertIcon = document.querySelector('.nuclear-alert-icon');
+      if (alertIcon) alertIcon.textContent = '\u26A1';
+      var logo = document.querySelector('.logo');
+      if (logo) logo.style.filter = 'drop-shadow(0 0 20px rgba(99,102,241,0.6))';
+    } else {
+      document.getElementById('nuclearAlertTime').textContent = 'Sites bloqueados até ' + h + ':' + m;
+    }
+
+    // Hide bypass buttons during nuclear/focus
     document.getElementById('bypassSection').classList.add('hidden');
     document.getElementById('challengeSection').classList.remove('visible');
   }

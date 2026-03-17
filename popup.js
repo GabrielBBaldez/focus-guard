@@ -216,18 +216,36 @@ var nuclearTimer = null;
 function updateNuclearBanner() {
   chrome.runtime.sendMessage({ type: 'getNuclearStatus' }, function(response) {
     if (chrome.runtime.lastError || !response) return;
+    var focusBtn = document.getElementById('focusModeBtn');
     if (response.active) {
       nuclearBanner.classList.add('active');
       var remaining = response.until - Date.now();
       var h = Math.floor(remaining / 3600000);
       var m = Math.floor((remaining % 3600000) / 60000);
       nuclearTimeEl.textContent = h + 'h ' + m + 'min restantes';
-      btnNuclear.disabled = true;
-      btnNuclear.textContent = 'NUCLEAR ATIVA';
+
+      if (response.mode === 'focus') {
+        nuclearBanner.classList.add('focus-mode');
+        document.querySelector('#nuclearBanner .nb-icon').textContent = '\u26A1';
+        document.querySelector('#nuclearBanner .nb-text').textContent = 'MODO FOCO ATIVO';
+        btnNuclear.disabled = true;
+        btnNuclear.textContent = 'FOCO ATIVO';
+        if (focusBtn) { focusBtn.disabled = true; focusBtn.textContent = '\u26A1 Foco Ativo'; }
+      } else {
+        nuclearBanner.classList.remove('focus-mode');
+        document.querySelector('#nuclearBanner .nb-icon').textContent = '\u2622';
+        document.querySelector('#nuclearBanner .nb-text').textContent = 'NUCLEAR OPTION ATIVA';
+        btnNuclear.disabled = true;
+        btnNuclear.textContent = 'NUCLEAR ATIVA';
+        if (focusBtn) { focusBtn.disabled = true; }
+      }
     } else {
-      nuclearBanner.classList.remove('active');
+      nuclearBanner.classList.remove('active', 'focus-mode');
+      document.querySelector('#nuclearBanner .nb-icon').textContent = '\u2622';
+      document.querySelector('#nuclearBanner .nb-text').textContent = 'NUCLEAR OPTION ATIVA';
       btnNuclear.disabled = false;
       btnNuclear.textContent = 'ATIVAR NUCLEAR OPTION';
+      if (focusBtn) { focusBtn.disabled = false; focusBtn.textContent = '\u26A1 Modo Foco'; }
     }
   });
 }
@@ -359,12 +377,14 @@ async function loadData() {
   // Check nuclear status
   var nuclearActive = false;
   var nuclearSites = null;
+  var nuclearMode = null;
   try {
     var nuclearData = await chrome.storage.local.get(STORAGE_KEYS.NUCLEAR);
     var nuclear = nuclearData[STORAGE_KEYS.NUCLEAR];
     if (nuclear && nuclear.until && Date.now() < nuclear.until) {
       nuclearActive = true;
       nuclearSites = nuclear.sites;
+      nuclearMode = nuclear.mode || 'nuclear';
     }
   } catch(e) {}
 
@@ -386,7 +406,8 @@ async function loadData() {
     totalSec += used;
 
     var badge = '';
-    if (isNuclear) badge = '<span class="site-badge badge-nuclear">Nuclear</span>';
+    if (isNuclear && nuclearMode === 'focus') badge = '<span class="site-badge badge-focus">Foco</span>';
+    else if (isNuclear) badge = '<span class="site-badge badge-nuclear">Nuclear</span>';
     else if (isBypassed) badge = '<span class="site-badge badge-bypassed">Liberado</span>';
     else if (isBlocked) badge = '<span class="site-badge badge-blocked">Bloqueado</span>';
     else if (hasSchedule) badge = '<span class="site-badge badge-scheduled">Horário</span>';
@@ -1218,6 +1239,116 @@ btnNuclear.addEventListener('click', function() {
   });
 });
 
+// ── Focus Mode ──
+
+(function() {
+  var focusModeBtn = document.getElementById('focusModeBtn');
+  var focusOverlay = document.getElementById('focusModalOverlay');
+  var focusSitesList = document.getElementById('focusSitesList');
+  var focusDurationBtns = document.getElementById('focusDurationBtns');
+  var focusCustomMin = document.getElementById('focusCustomMin');
+  var focusBtnCancel = document.getElementById('focusBtnCancel');
+  var focusBtnStart = document.getElementById('focusBtnStart');
+  var selectedFocusMin = 30;
+
+  if (focusModeBtn) {
+    focusModeBtn.addEventListener('click', function() {
+      // Populate sites list from storage
+      chrome.storage.local.get(STORAGE_KEYS.SITES, function(data) {
+        var sites = data[STORAGE_KEYS.SITES] || {};
+        var patterns = Object.keys(sites);
+        focusSitesList.innerHTML = '';
+        patterns.forEach(function(pattern) {
+          var item = document.createElement('label');
+          item.className = 'focus-site-item';
+          item.innerHTML = '<input type="checkbox" checked value="' + pattern + '"> ' + pattern;
+          focusSitesList.appendChild(item);
+        });
+        // Reset duration selection
+        selectedFocusMin = 30;
+        focusCustomMin.value = '';
+        var btns = focusDurationBtns.querySelectorAll('.focus-dur-btn');
+        btns.forEach(function(b) {
+          b.classList.toggle('active', b.dataset.min === '30');
+        });
+        focusOverlay.classList.add('active');
+      });
+    });
+  }
+
+  // Duration button selection
+  if (focusDurationBtns) {
+    focusDurationBtns.addEventListener('click', function(e) {
+      var btn = e.target.closest('.focus-dur-btn');
+      if (!btn) return;
+      var btns = focusDurationBtns.querySelectorAll('.focus-dur-btn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      selectedFocusMin = parseInt(btn.dataset.min, 10);
+      focusCustomMin.value = '';
+    });
+  }
+
+  // Custom duration input
+  if (focusCustomMin) {
+    focusCustomMin.addEventListener('input', function() {
+      var val = parseInt(this.value, 10);
+      if (val >= 5 && val <= 480) {
+        selectedFocusMin = val;
+        var btns = focusDurationBtns.querySelectorAll('.focus-dur-btn');
+        btns.forEach(function(b) { b.classList.remove('active'); });
+      }
+    });
+  }
+
+  // Cancel
+  if (focusBtnCancel) {
+    focusBtnCancel.addEventListener('click', function() {
+      focusOverlay.classList.remove('active');
+    });
+  }
+
+  // Close on overlay click
+  if (focusOverlay) {
+    focusOverlay.addEventListener('click', function(e) {
+      if (e.target === focusOverlay) focusOverlay.classList.remove('active');
+    });
+  }
+
+  // Start focus mode
+  if (focusBtnStart) {
+    focusBtnStart.addEventListener('click', function() {
+      var checkboxes = focusSitesList.querySelectorAll('input[type="checkbox"]:checked');
+      var selectedSites = [];
+      checkboxes.forEach(function(cb) { selectedSites.push(cb.value); });
+
+      if (selectedSites.length === 0) {
+        alert('Selecione pelo menos um site.');
+        return;
+      }
+
+      // Use custom input if filled and valid
+      var customVal = parseInt(focusCustomMin.value, 10);
+      var minutes = (customVal >= 5 && customVal <= 480) ? customVal : selectedFocusMin;
+
+      chrome.runtime.sendMessage({
+        type: 'activateFocusMode',
+        minutes: minutes,
+        sites: selectedSites
+      }, function(response) {
+        if (chrome.runtime.lastError || !response) return;
+        if (response.ok) {
+          focusOverlay.classList.remove('active');
+          updateNuclearBanner();
+          loadData();
+        } else if (response.error) {
+          alert(response.error);
+        }
+      });
+    });
+  }
+})();
+
 // ── Lightweight Usage Refresh (no DOM rebuild) ──
 
 async function refreshUsage() {
@@ -1238,6 +1369,7 @@ async function refreshUsage() {
   var nuclear = data[STORAGE_KEYS.NUCLEAR];
   var nuclearActive = nuclear && nuclear.until && Date.now() < nuclear.until;
   var nuclearSites = nuclearActive ? nuclear.sites : null;
+  var refreshNuclearMode = nuclearActive ? (nuclear.mode || 'nuclear') : null;
 
   var totalSec = 0;
 
@@ -1289,7 +1421,8 @@ async function refreshUsage() {
     var badgeSlot = card.querySelector('.site-badge-slot');
     if (badgeSlot) {
       var newBadge = '';
-      if (isNuclear) newBadge = '<span class="site-badge badge-nuclear">Nuclear</span>';
+      if (isNuclear && refreshNuclearMode === 'focus') newBadge = '<span class="site-badge badge-focus">Foco</span>';
+      else if (isNuclear) newBadge = '<span class="site-badge badge-nuclear">Nuclear</span>';
       else if (isBypassed) newBadge = '<span class="site-badge badge-bypassed">Liberado</span>';
       else if (isBlocked) newBadge = '<span class="site-badge badge-blocked">Bloqueado</span>';
       if (badgeSlot.innerHTML !== newBadge && !badgeSlot.querySelector('.badge-scheduled')) {
