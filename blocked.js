@@ -3,6 +3,45 @@ function themeColor(varName) {
   return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
 }
 
+// ── Count-up Animation ──
+function animateCountUp(element, targetText, duration) {
+  duration = duration || 400;
+  // If user prefers reduced motion, set directly
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    element.textContent = targetText;
+    return;
+  }
+  // Extract numeric value from targetText (e.g., "45min" -> 45, "2h30min" -> parse as-is)
+  var match = targetText.match(/^(\d+)/);
+  if (!match) {
+    element.textContent = targetText;
+    return;
+  }
+  var targetValue = parseInt(match[1], 10);
+  var suffix = targetText.slice(match[1].length);
+  var startTime = null;
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function step(timestamp) {
+    if (!startTime) startTime = timestamp;
+    var elapsed = timestamp - startTime;
+    var progress = Math.min(elapsed / duration, 1);
+    var easedProgress = easeOutCubic(progress);
+    var currentValue = Math.round(easedProgress * targetValue);
+    element.textContent = currentValue + suffix;
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    } else {
+      element.textContent = targetText;
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
 // ── Init ──
 var params = new URLSearchParams(window.location.search);
 var rawSite = params.get('site') || 'este site';
@@ -193,18 +232,18 @@ chrome.runtime.sendMessage({ type: 'getUsage' }, function(response) {
   var extraSec = extra[site] || 0;
   var totalLimitSec = (limitMin * 60) + extraSec;
 
-  document.getElementById('statUsed').textContent = formatMin(usedSec);
-  document.getElementById('statLimit').textContent = formatMin(totalLimitSec);
+  animateCountUp(document.getElementById('statUsed'), formatMin(usedSec));
+  animateCountUp(document.getElementById('statLimit'), formatMin(totalLimitSec));
 
   // If weekly block, show weekly stats instead
   if (isWeeklyBlock && weeklyLimits[site]) {
-    document.getElementById('statLimit').textContent = formatMin(weeklyLimits[site] * 60);
+    animateCountUp(document.getElementById('statLimit'), formatMin(weeklyLimits[site] * 60));
     document.querySelector('#statLimit + .stat-label').textContent = 'Limite semanal';
     document.querySelector('#statUsed + .stat-label').textContent = 'Usado hoje';
     // Fetch weekly usage to display
     chrome.runtime.sendMessage({ type: 'getWeeklyUsage', site: site }, function(weeklyResp) {
       if (weeklyResp && weeklyResp.seconds !== undefined) {
-        document.getElementById('statTotal').textContent = formatMin(weeklyResp.seconds);
+        animateCountUp(document.getElementById('statTotal'), formatMin(weeklyResp.seconds));
         document.querySelector('#statTotal + .stat-label').textContent = 'Usado semana';
       }
     });
@@ -214,7 +253,7 @@ chrome.runtime.sendMessage({ type: 'getUsage' }, function(response) {
     for (var i = 0; i < keys.length; i++) {
       totalToday += usage[keys[i]] || 0;
     }
-    document.getElementById('statTotal').textContent = formatMin(totalToday);
+    animateCountUp(document.getElementById('statTotal'), formatMin(totalToday));
   }
 });
 
