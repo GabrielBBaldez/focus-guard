@@ -1323,3 +1323,99 @@ document.getElementById('btnImportMerge').addEventListener('click', async functi
   loadSettings();
   loadData();
 });
+
+// ── Onboarding ──
+
+function initOnboarding() {
+  chrome.storage.local.get(['focusGuard_onboarded', STORAGE_KEYS.SITES], function(data) {
+    var onboarded = data.focusGuard_onboarded;
+    var sites = data[STORAGE_KEYS.SITES];
+    if (onboarded || Object.keys(sites || {}).length > 0) return;
+
+    var overlay = document.getElementById('onboardingOverlay');
+    overlay.hidden = false;
+
+    var currentStep = 1;
+    var addedSites = [];
+
+    function showStep(step) {
+      currentStep = step;
+      var steps = overlay.querySelectorAll('.onboarding-step');
+      steps.forEach(function(s) {
+        s.classList.remove('active');
+        if (parseInt(s.getAttribute('data-step')) === step) {
+          s.classList.add('active');
+        }
+      });
+      var dots = overlay.querySelectorAll('.onboarding-dot');
+      dots.forEach(function(d) {
+        d.classList.toggle('active', parseInt(d.getAttribute('data-dot')) === step);
+      });
+    }
+
+    function finishOnboarding() {
+      chrome.storage.local.set({ focusGuard_onboarded: true });
+      overlay.hidden = true;
+      if (typeof loadData === 'function') loadData();
+    }
+
+    // Step 1 buttons
+    document.getElementById('onbSkip1').addEventListener('click', finishOnboarding);
+    document.getElementById('onbNext1').addEventListener('click', function() { showStep(2); });
+
+    // Step 2: suggestion chips
+    var chips = overlay.querySelectorAll('.suggestion-chip');
+    var domainInput = document.getElementById('onbDomain');
+    chips.forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        chips.forEach(function(c) { c.classList.remove('selected'); });
+        chip.classList.add('selected');
+        domainInput.value = chip.getAttribute('data-domain');
+      });
+    });
+
+    // Step 2: add site
+    var addedListEl = document.getElementById('onbAddedList');
+    document.getElementById('onbAddSite').addEventListener('click', async function() {
+      var domain = domainInput.value.trim().toLowerCase();
+      domain = domain.replace(/^(https?:\/\/)?(www\.)?/, '');
+      domain = domain.replace(/[#?].*$/, '').replace(/\/+$/, '');
+      if (!domain) return;
+      var domainPart = domain.split('/')[0];
+      if (!domainPart.includes('.') || domainPart.length > 255) return;
+
+      var limitMin = parseInt(document.getElementById('onbLimit').value) || 30;
+      limitMin = Math.min(Math.max(limitMin, 1), 1440);
+
+      // Save to storage
+      var sData = await chrome.storage.local.get(STORAGE_KEYS.SITES);
+      var sites = sData[STORAGE_KEYS.SITES] || {};
+      sites[domain] = limitMin;
+      await chrome.storage.local.set({ [STORAGE_KEYS.SITES]: sites });
+
+      addedSites.push({ domain: domain, limit: limitMin });
+
+      // Update list display
+      addedListEl.innerHTML = '';
+      addedSites.forEach(function(s) {
+        var item = document.createElement('div');
+        item.className = 'onboarding-added-item';
+        item.innerHTML = '<span>' + s.domain + '</span><span class="added-limit">' + s.limit + ' min/dia</span>';
+        addedListEl.appendChild(item);
+      });
+
+      // Reset inputs
+      domainInput.value = '';
+      chips.forEach(function(c) { c.classList.remove('selected'); });
+    });
+
+    // Step 2 buttons
+    document.getElementById('onbSkip2').addEventListener('click', finishOnboarding);
+    document.getElementById('onbNext2').addEventListener('click', function() { showStep(3); });
+
+    // Step 3: finish
+    document.getElementById('onbFinish').addEventListener('click', finishOnboarding);
+  });
+}
+
+initOnboarding();

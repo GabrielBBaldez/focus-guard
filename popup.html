@@ -825,6 +825,154 @@
         transition-duration: 0.01ms !important;
       }
     }
+
+    /* ── Onboarding Overlay ── */
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .onboarding-overlay {
+      position: fixed; inset: 0;
+      background: var(--bg-primary);
+      z-index: 1000;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .onboarding-overlay[hidden] { display: none; }
+
+    .onboarding-step {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 12px;
+      width: 100%;
+      max-width: 340px;
+      animation: fadeSlideIn 200ms ease;
+    }
+    .onboarding-step.active { display: flex; }
+
+    .onboarding-icon { font-size: 2.5rem; }
+    .onboarding-title { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); }
+    .onboarding-subtitle { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; }
+
+    .onboarding-chips {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      justify-content: center; margin: 4px 0;
+    }
+    .suggestion-chip {
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--accent);
+      background: transparent;
+      color: var(--accent-light);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+    .suggestion-chip:hover,
+    .suggestion-chip.selected {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .onboarding-custom {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%;
+    }
+    .onboarding-custom input[type="text"] {
+      flex: 1; min-width: 0;
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-primary);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-size: 0.85rem;
+    }
+    .onboarding-custom input[type="number"] {
+      width: 56px;
+      padding: 8px 6px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-primary);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .onboarding-custom .unit-label {
+      font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap;
+    }
+
+    .onboarding-add-btn {
+      padding: 8px 16px;
+      border-radius: var(--radius-md);
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+    .onboarding-add-btn:hover { background: var(--accent-hover); }
+
+    .onboarding-added-list {
+      width: 100%;
+      max-height: 100px;
+      overflow-y: auto;
+      display: flex; flex-direction: column; gap: 4px;
+      margin: 4px 0;
+    }
+    .onboarding-added-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 10px;
+      background: var(--bg-card);
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem; color: var(--text-primary);
+    }
+    .onboarding-added-item .added-limit {
+      color: var(--text-secondary); font-size: 0.75rem;
+    }
+
+    .onboarding-actions {
+      display: flex; gap: 10px; margin-top: 8px; width: 100%;
+      justify-content: center;
+    }
+    .onboarding-btn {
+      padding: 10px 24px;
+      border-radius: var(--radius-md);
+      border: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition-fast), opacity var(--transition-fast);
+    }
+    .onboarding-btn.primary {
+      background: var(--accent); color: #fff;
+    }
+    .onboarding-btn.primary:hover { background: var(--accent-hover); }
+    .onboarding-btn.secondary {
+      background: transparent; color: var(--text-secondary);
+      border: 1px solid var(--border-primary);
+    }
+    .onboarding-btn.secondary:hover { opacity: 0.8; }
+
+    .onboarding-dots {
+      display: flex; gap: 8px; margin-top: 16px;
+    }
+    .onboarding-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border-primary);
+      transition: background var(--transition-fast);
+    }
+    .onboarding-dot.active { background: var(--accent); }
+
+    .onboarding-hint {
+      font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -1175,6 +1323,60 @@
         <button class="btn-config" id="btnImportMerge">Mesclar</button>
         <button class="btn-config" id="btnImportCancel">Cancelar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Onboarding Overlay -->
+  <div class="onboarding-overlay" id="onboardingOverlay" hidden>
+    <!-- Step 1: Welcome -->
+    <div class="onboarding-step active" data-step="1">
+      <div class="onboarding-icon">&#128737;&#65039;</div>
+      <div class="onboarding-title">Bem-vindo ao Focus Guard!</div>
+      <div class="onboarding-subtitle">Controle seu tempo online com limites di&aacute;rios</div>
+      <div class="onboarding-actions">
+        <button class="onboarding-btn secondary" id="onbSkip1">Pular</button>
+        <button class="onboarding-btn primary" id="onbNext1">Pr&oacute;ximo</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Add first site -->
+    <div class="onboarding-step" data-step="2">
+      <div class="onboarding-title">Adicione seus primeiros sites</div>
+      <div class="onboarding-subtitle">Escolha sites que voc&ecirc; quer limitar:</div>
+      <div class="onboarding-chips">
+        <button class="suggestion-chip" data-domain="youtube.com">youtube.com</button>
+        <button class="suggestion-chip" data-domain="twitter.com">twitter.com</button>
+        <button class="suggestion-chip" data-domain="reddit.com">reddit.com</button>
+        <button class="suggestion-chip" data-domain="instagram.com">instagram.com</button>
+        <button class="suggestion-chip" data-domain="tiktok.com">tiktok.com</button>
+      </div>
+      <div class="onboarding-custom">
+        <input type="text" id="onbDomain" placeholder="Ou digite um dom&iacute;nio...">
+        <input type="number" id="onbLimit" value="30" min="1" max="1440">
+        <span class="unit-label">min/dia</span>
+      </div>
+      <button class="onboarding-add-btn" id="onbAddSite">Adicionar</button>
+      <div class="onboarding-added-list" id="onbAddedList"></div>
+      <div class="onboarding-actions">
+        <button class="onboarding-btn secondary" id="onbSkip2">Pular</button>
+        <button class="onboarding-btn primary" id="onbNext2">Pr&oacute;ximo</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Done -->
+    <div class="onboarding-step" data-step="3">
+      <div class="onboarding-icon">&#9989;</div>
+      <div class="onboarding-title">Pronto!</div>
+      <div class="onboarding-hint">Voc&ecirc; pode ajustar limites, hor&aacute;rios e desafios na aba <strong>Config</strong>.</div>
+      <div class="onboarding-actions">
+        <button class="onboarding-btn primary" id="onbFinish">Come&ccedil;ar</button>
+      </div>
+    </div>
+
+    <div class="onboarding-dots">
+      <div class="onboarding-dot active" data-dot="1"></div>
+      <div class="onboarding-dot" data-dot="2"></div>
+      <div class="onboarding-dot" data-dot="3"></div>
     </div>
   </div>
 
