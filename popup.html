@@ -1000,6 +1000,25 @@
     .streak-card-current { font-size: 1.1rem; font-weight: 700; }
     .streak-card-best { font-size: 0.75rem; color: var(--text-secondary); }
 
+    .achievements-section { margin-bottom: 12px; }
+    .achievements-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 8px; padding: 0 16px;
+    }
+    .achievement-item {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 10px 4px; border-radius: var(--radius-md);
+      background: var(--bg-card); border: 1px solid var(--border-secondary);
+      text-align: center; transition: var(--transition-fast);
+    }
+    .achievement-item.locked { opacity: 0.4; filter: grayscale(100%); }
+    .achievement-icon { font-size: 24px; margin-bottom: 4px; }
+    .achievement-name { font-size: 10px; color: var(--text-secondary); line-height: 1.2; }
+    .achievement-item:not(.locked) {
+      border-color: var(--accent);
+      box-shadow: 0 0 4px rgba(99,102,241,0.25);
+    }
+
     .streak-badge {
       display: inline-flex;
       align-items: center;
@@ -1421,6 +1440,11 @@
         <div class="streak-card-current"><span id="streakCardCurrent">0</span> dias</div>
         <div class="streak-card-best">Recorde: <span id="streakCardBest">0</span> dias</div>
       </div>
+    </div>
+
+    <div class="achievements-section">
+      <h3 class="section-title">Conquistas</h3>
+      <div class="achievements-grid" id="achievementsGrid"></div>
     </div>
 
     <div class="chart-section" id="chartSection">

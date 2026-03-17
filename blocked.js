@@ -489,6 +489,7 @@ function startBreathing() {
 
 function runPhaseSequence(index) {
   if (index >= breathingPhases.length) {
+    chrome.runtime.sendMessage({ type: 'breathingCompleted' });
     startBreathing();
     return;
   }
@@ -621,6 +622,7 @@ function startPomodoro() {
 
       if (pomodoroState.mode === 'focus') {
         pomodoroState.cycles++;
+        chrome.runtime.sendMessage({ type: 'pomodoroCompleted' });
         pomodoroState.mode = 'break';
         pomodoroState.remaining = POMODORO_BREAK;
         pomodoroState.total = POMODORO_BREAK;

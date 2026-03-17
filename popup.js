@@ -570,6 +570,11 @@ btnAdd.addEventListener('click', async function() {
   sites[site] = limitMin;
   await chrome.storage.local.set({ [STORAGE_KEYS.SITES]: sites });
 
+  // Check sites_5 achievement
+  if (Object.keys(sites).length >= 5) {
+    chrome.runtime.sendMessage({ type: 'checkSitesAchievement' });
+  }
+
   // Save weekly limit if provided
   if (weeklyMin > 0) {
     var wData = await chrome.storage.local.get(STORAGE_KEYS.WEEKLY_LIMITS);
@@ -772,7 +777,32 @@ function calculateTrend(history) {
 
 // ── History Tab ──
 
+function renderAchievements() {
+  chrome.runtime.sendMessage({ type: 'getAchievements' }, function(res) {
+    if (!res) return;
+    var grid = document.getElementById('achievementsGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    var entries = Object.entries(res.definitions);
+    for (var i = 0; i < entries.length; i++) {
+      var id = entries[i][0];
+      var def = entries[i][1];
+      var unlocked = res.achievements[id];
+      var item = document.createElement('div');
+      item.className = 'achievement-item' + (unlocked ? '' : ' locked');
+      item.title = unlocked
+        ? def.name + ': ' + def.desc + '\nDesbloqueado em ' + new Date(unlocked.unlockedAt).toLocaleDateString('pt-BR')
+        : def.desc;
+      item.innerHTML =
+        '<span class="achievement-icon">' + (unlocked ? def.icon : '?') + '</span>' +
+        '<span class="achievement-name">' + (unlocked ? def.name : '???') + '</span>';
+      grid.appendChild(item);
+    }
+  });
+}
+
 function loadHistory() {
+  renderAchievements();
   chrome.runtime.sendMessage({ type: 'getHistory' }, function(response) {
     if (chrome.runtime.lastError || !response) {
       historyPanel.innerHTML = '<div class="history-empty">Erro ao carregar histórico</div>';

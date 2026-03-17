@@ -25,6 +25,38 @@ const STORAGE_KEYS = {
   GOALS: 'focusGuard_goals'              // { general: hours } | null
 };
 
+const ACHIEVEMENTS = {
+  first_block:     { name: 'Primeiro Limite',  icon: '\u{1F6E1}\uFE0F', desc: 'Ser bloqueado pela primeira vez' },
+  first_challenge: { name: 'Desafio Aceito',   icon: '\u270D\uFE0F', desc: 'Completar primeiro challenge' },
+  first_nuclear:   { name: 'Botao Vermelho',   icon: '\u2622\uFE0F', desc: 'Ativar nuclear pela primeira vez' },
+  streak_3:        { name: 'Foco Iniciante',    icon: '\u{1F525}', desc: 'Streak de 3 dias' },
+  streak_7:        { name: 'Semana Perfeita',   icon: '\u2B50', desc: 'Streak de 7 dias' },
+  streak_30:       { name: 'Mes de Ferro',      icon: '\u{1F48E}', desc: 'Streak de 30 dias' },
+  sites_5:         { name: 'Guardiao',          icon: '\u{1F3F0}', desc: 'Rastrear 5 sites simultaneos' },
+  focus_10:        { name: 'Modo Foco x10',     icon: '\u26A1', desc: 'Usar Modo Foco 10 vezes' },
+  breathe_5:       { name: 'Respiracao Zen',    icon: '\u{1F9D8}', desc: 'Completar 5 exercicios de respiracao' },
+  pomodoro_10:     { name: 'Pomodoro Master',   icon: '\u{1F345}', desc: 'Completar 10 ciclos de pomodoro' },
+  no_bypass_7:     { name: 'Sem Atalhos',       icon: '\u{1F4AA}', desc: '7 dias sem usar bypass/extra time' },
+  veteran:         { name: 'Veterano',          icon: '\u{1F396}\uFE0F', desc: 'Usar Focus Guard por 30 dias' }
+};
+
+async function checkAndUnlockAchievement(id) {
+  const data = await new Promise(r => chrome.storage.local.get('focusGuard_achievements', r));
+  const achievements = data.focusGuard_achievements || {};
+  if (achievements[id]) return; // Already unlocked
+  achievements[id] = { unlockedAt: Date.now() };
+  chrome.storage.local.set({ focusGuard_achievements: achievements });
+  const def = ACHIEVEMENTS[id];
+  if (def) {
+    chrome.notifications.create(`achievement_${id}`, {
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: 'Conquista Desbloqueada!',
+      message: `${def.icon} ${def.name} — ${def.desc}`
+    });
+  }
+}
+
 let activeTabId = null;
 let activeHostname = null;
 let activeUrl = null;
@@ -261,6 +293,25 @@ async function _doResetIfNewDay() {
     } else {
       streak.current = 0;
     }
+
+    // Achievement checks for streaks
+    if (streak.current >= 3) checkAndUnlockAchievement('streak_3');
+    if (streak.current >= 7) checkAndUnlockAchievement('streak_7');
+    if (streak.current >= 30) checkAndUnlockAchievement('streak_30');
+
+    // No-bypass streak tracking
+    const usedBypass = Object.keys(bypassed).length > 0 || Object.keys(extra).length > 0;
+    const nbdData = await new Promise(r => chrome.storage.local.get('focusGuard_noBypassDays', r));
+    let noBypassDays = nbdData.focusGuard_noBypassDays || 0;
+    noBypassDays = usedBypass ? 0 : noBypassDays + 1;
+    chrome.storage.local.set({ focusGuard_noBypassDays: noBypassDays });
+    if (noBypassDays >= 7) checkAndUnlockAchievement('no_bypass_7');
+
+    // Veteran achievement: check history days
+    const histData = await chrome.storage.local.get(STORAGE_KEYS.HISTORY);
+    const historyObj = histData[STORAGE_KEYS.HISTORY] || {};
+    const historyDays = Object.keys(historyObj).length;
+    if (historyDays >= 30) checkAndUnlockAchievement('veteran');
 
     // Atomic reset: all transient data zeroed in one call
     await chrome.storage.local.set({
@@ -591,6 +642,7 @@ async function updateBadge() {
 // ── Blocking ──
 
 async function blockSite(pattern, reason) {
+  checkAndUnlockAchievement('first_block');
   try {
     const nuclearActive = await isNuclearBlocked(pattern);
     const nuclearParam = nuclearActive ? '&nuclear=1' : '';
@@ -975,6 +1027,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           [STORAGE_KEYS.NUCLEAR]: { until, sites, mode: 'nuclear' }
         });
 
+        checkAndUnlockAchievement('first_nuclear');
+
         // Create alarm for auto-cleanup
         chrome.alarms.create('nuclearEnd', { when: until });
 
@@ -1017,6 +1071,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const countData = await chrome.storage.local.get('focusGuard_focusModeCount');
         const count = (countData['focusGuard_focusModeCount'] || 0) + 1;
         await chrome.storage.local.set({ 'focusGuard_focusModeCount': count });
+
+        if (count >= 10) checkAndUnlockAchievement('focus_10');
 
         // Create alarm for auto-cleanup
         chrome.alarms.create('nuclearEnd', { when: until });
@@ -1190,6 +1246,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const original = (msg.original || '').trim().toLowerCase().replace(/\s+/g, ' ');
         const typed = (msg.typed || '').trim().toLowerCase().replace(/\s+/g, ' ');
         const match = original === typed;
+        if (match) checkAndUnlockAchievement('first_challenge');
         sendResponse({ ok: match });
       } catch { sendResponse({ ok: false }); }
     })();
@@ -1313,6 +1370,54 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const limitSeconds = (weeklyLimits[pattern] || 0) * 60;
         sendResponse({ seconds, used: seconds, limit: limitSeconds });
       } catch { sendResponse({ seconds: 0, used: 0, limit: 0 }); }
+    })();
+    return true;
+  }
+
+  if (msg.type === 'breathingCompleted') {
+    (async () => {
+      try {
+        const bcData = await new Promise(r => chrome.storage.local.get('focusGuard_breathingCount', r));
+        const count = (bcData.focusGuard_breathingCount || 0) + 1;
+        chrome.storage.local.set({ focusGuard_breathingCount: count });
+        if (count >= 5) checkAndUnlockAchievement('breathe_5');
+        sendResponse({ count });
+      } catch { sendResponse({ count: 0 }); }
+    })();
+    return true;
+  }
+
+  if (msg.type === 'pomodoroCompleted') {
+    (async () => {
+      try {
+        const pcData = await new Promise(r => chrome.storage.local.get('focusGuard_pomodoroCount', r));
+        const count = (pcData.focusGuard_pomodoroCount || 0) + 1;
+        chrome.storage.local.set({ focusGuard_pomodoroCount: count });
+        if (count >= 10) checkAndUnlockAchievement('pomodoro_10');
+        sendResponse({ count });
+      } catch { sendResponse({ count: 0 }); }
+    })();
+    return true;
+  }
+
+  if (msg.type === 'getAchievements') {
+    (async () => {
+      try {
+        const aData = await new Promise(r => chrome.storage.local.get('focusGuard_achievements', r));
+        sendResponse({ achievements: aData.focusGuard_achievements || {}, definitions: ACHIEVEMENTS });
+      } catch { sendResponse({ achievements: {}, definitions: ACHIEVEMENTS }); }
+    })();
+    return true;
+  }
+
+  if (msg.type === 'checkSitesAchievement') {
+    (async () => {
+      try {
+        const sitesData = await chrome.storage.local.get(STORAGE_KEYS.SITES);
+        const sites = sitesData[STORAGE_KEYS.SITES] || {};
+        if (Object.keys(sites).length >= 5) checkAndUnlockAchievement('sites_5');
+        sendResponse({ ok: true });
+      } catch { sendResponse({ ok: false }); }
     })();
     return true;
   }
