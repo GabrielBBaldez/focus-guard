@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Focus Guard",
-  "version": "2.0",
-  "description": "Bloqueie sites que distraem apos um tempo limite diario. Historico, Nuclear Option, desafios e mais.",
+  "version": "3.0",
+  "description": "Controle seu tempo online com limites diarios, modo foco, conquistas e mais. Tema claro/escuro, historico de 365 dias.",
   "permissions": [
     "storage",
     "tabs",
