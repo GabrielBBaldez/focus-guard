@@ -1,3 +1,16 @@
+// ── Theme Color Helper ──
+function themeColor(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+function themeColorAlpha(varName, alpha) {
+  var hex = themeColor(varName);
+  var r = parseInt(hex.slice(1, 3), 16);
+  var g = parseInt(hex.slice(3, 5), 16);
+  var b = parseInt(hex.slice(5, 7), 16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+
 const STORAGE_KEYS = {
   SITES: 'focusGuard_sites',
   USAGE: 'focusGuard_usage',
@@ -322,7 +335,7 @@ async function loadData() {
   var globalPct = totalLimit > 0 ? Math.min((totalSec / totalLimit) * 100, 100) : 0;
   var globalFill = document.getElementById('globalProgressFill');
   globalFill.style.width = globalPct + '%';
-  globalFill.style.background = globalPct > 80 ? '#ef4444' : (globalPct > 50 ? '#eab308' : '#22c55e');
+  globalFill.style.background = globalPct > 80 ? themeColor('--danger') : (globalPct > 50 ? themeColor('--warning') : themeColor('--success'));
 
   // Favicon fallback
   document.querySelectorAll('.fav-img').forEach(function(img) {
@@ -548,10 +561,10 @@ function renderBarChart(history) {
     });
     var totalSec = 0;
     sites.forEach(function(s) { totalSec += (day.usage[s] || 0); });
-    var dayColor = '#71717a';
+    var dayColor = themeColor('--text-secondary');
     if (totalSec > 0 && maxTotal > 0) {
       var ratio = totalSec / maxTotal;
-      dayColor = ratio > 0.8 ? '#ef4444' : (ratio > 0.5 ? '#eab308' : '#22c55e');
+      dayColor = ratio > 0.8 ? themeColor('--danger') : (ratio > 0.5 ? themeColor('--warning') : themeColor('--success'));
     }
     html += '<text x="' + (x + barWidth / 2) + '" y="190" text-anchor="middle" fill="' + dayColor + '" font-size="10">' + day.label + '</text>';
   });
@@ -808,8 +821,8 @@ function buildSparklines(history, sortedDates) {
     areaPath += ' L' + (svgWidth - padding).toFixed(1) + ',' + svgHeight;
     areaPath += ' L' + padding + ',' + svgHeight + ' Z';
 
-    var lineColor = trendClass === 'trend-up' ? '#ef4444' : trendClass === 'trend-down' ? '#22c55e' : '#6366f1';
-    var fillColor = trendClass === 'trend-up' ? 'rgba(239,68,68,0.1)' : trendClass === 'trend-down' ? 'rgba(34,197,94,0.1)' : 'rgba(99,102,241,0.1)';
+    var lineColor = trendClass === 'trend-up' ? themeColor('--danger') : trendClass === 'trend-down' ? themeColor('--success') : themeColor('--accent');
+    var fillColor = trendClass === 'trend-up' ? themeColorAlpha('--danger', 0.1) : trendClass === 'trend-down' ? themeColorAlpha('--success', 0.1) : themeColorAlpha('--accent', 0.1);
 
     var avgMin = Math.round(siteTotals[siteName] / 7 / 60);
     var avgText = avgMin >= 60 ? Math.floor(avgMin / 60) + 'h' + (avgMin % 60 > 0 ? avgMin % 60 : '') : avgMin + 'm';

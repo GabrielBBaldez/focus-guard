@@ -1,3 +1,8 @@
+// ── Theme Color Helper ──
+function themeColor(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
 // ── Init ──
 var params = new URLSearchParams(window.location.search);
 var rawSite = params.get('site') || 'este site';
@@ -487,11 +492,11 @@ function updatePomodoroDisplay() {
   if (pomodoroState.mode === 'focus') {
     pomodoroLabelEl.textContent = 'FOCO';
     pomodoroLabelEl.className = 'pomodoro-label focus';
-    pomodoroRing.setAttribute('stroke', '#22c55e');
+    pomodoroRing.setAttribute('stroke', themeColor('--success'));
   } else {
     pomodoroLabelEl.textContent = 'PAUSA';
     pomodoroLabelEl.className = 'pomodoro-label break';
-    pomodoroRing.setAttribute('stroke', '#eab308');
+    pomodoroRing.setAttribute('stroke', themeColor('--warning'));
   }
 
   pomodoroCyclesEl.textContent = 'Ciclos completos: ' + pomodoroState.cycles;
