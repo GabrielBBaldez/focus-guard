@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://chromewebstore.google.com/detail/ddcpdpjapbceoadjeeppaefbnepdmljp"><img src="https://img.shields.io/badge/Chrome_Web_Store-v3.0-6366f1?style=flat-square&logo=googlechrome&logoColor=white" alt="Chrome Web Store"></a>
+  <a href="https://chromewebstore.google.com/detail/focus-guard/ddcpdpjapbceoadjeeppaefbnepdmljp"><img src="https://img.shields.io/badge/Chrome_Web_Store-v3.0-6366f1?style=flat-square&logo=googlechrome&logoColor=white" alt="Chrome Web Store"></a>
   <img src="https://img.shields.io/badge/Manifest-V3-22c55e?style=flat-square" alt="Manifest V3">
   <img src="https://img.shields.io/badge/Preco-Gratis-22c55e?style=flat-square" alt="Gratis">
   <img src="https://img.shields.io/badge/Dados-100%25_Local-eab308?style=flat-square" alt="100% Local">
@@ -75,7 +75,7 @@ Focus Guard e uma extensao para Chrome que monitora quanto tempo voce gasta em s
 ## Instalacao
 
 ### Chrome Web Store (recomendado)
-1. Acesse a [pagina da extensao](https://chromewebstore.google.com/detail/ddcpdpjapbceoadjeeppaefbnepdmljp) na Chrome Web Store
+1. Acesse a [pagina da extensao](https://chromewebstore.google.com/detail/focus-guard/ddcpdpjapbceoadjeeppaefbnepdmljp) na Chrome Web Store
 2. Clique em **"Usar no Chrome"**
 3. Pronto!
 
